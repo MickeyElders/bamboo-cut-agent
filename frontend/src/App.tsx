@@ -34,12 +34,48 @@ export default function App() {
   const [logLines, setLogLines] = useState<string[]>([]);
   const [cameraOn, setCameraOn] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
+  const [cameraError, setCameraError] = useState<string>("");
 
   const connectionState = useMemo(() => (wsConnected ? "online" : "offline"), [wsConnected]);
 
   useEffect(() => {
     fetchMotorStatus().then(setMotor).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cams = devices.filter((d) => d.kind === "videoinput");
+        if (!active) return;
+        setCameraDevices(cams);
+        if (!selectedCameraId && cams.length > 0) {
+          setSelectedCameraId(cams[0].deviceId);
+        }
+      } catch (err) {
+        if (!active) return;
+        setCameraError("Failed to enumerate cameras");
+        setLogLines((prev) => [`[ERR] enumerateDevices failed: ${String(err)}`, ...prev].slice(0, 200));
+      }
+    }
+
+    loadDevices();
+    const handler = () => loadDevices();
+    if (navigator.mediaDevices && "addEventListener" in navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener("devicechange", handler);
+    }
+
+    return () => {
+      active = false;
+      if (navigator.mediaDevices && "removeEventListener" in navigator.mediaDevices) {
+        navigator.mediaDevices.removeEventListener("devicechange", handler);
+      }
+    };
+  }, [selectedCameraId]);
 
   useEffect(() => {
     const ws = new WebSocket(uiWsUrl());
@@ -80,8 +116,10 @@ export default function App() {
 
   async function startCamera() {
     try {
+      setCameraError("");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
+          deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 15, max: 30 }
@@ -102,7 +140,10 @@ export default function App() {
 
       setCameraOn(true);
       setLogLines((prev) => ["[SYS] Camera started", ...prev].slice(0, 200));
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setCameraDevices(devices.filter((d) => d.kind === "videoinput"));
     } catch {
+      setCameraError("Camera start failed");
       setLogLines((prev) => ["[ERR] Camera start failed", ...prev].slice(0, 200));
     }
   }
@@ -124,8 +165,24 @@ export default function App() {
           <video ref={videoRef} autoPlay playsInline muted />
           <canvas ref={canvasRef} className="overlay" />
         </div>
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+          <label>
+            Camera
+            <select
+              style={{ marginLeft: 8 }}
+              value={selectedCameraId}
+              onChange={(e) => setSelectedCameraId(e.target.value)}
+            >
+              {cameraDevices.length === 0 && <option value="">No cameras</option>}
+              {cameraDevices.map((d, idx) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Camera ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
           <button className="primary" onClick={startCamera} disabled={cameraOn}>Enable USB Camera</button>
+          {cameraError ? <div style={{ color: "#9d3020", fontWeight: 600 }}>{cameraError}</div> : null}
         </div>
       </section>
 
