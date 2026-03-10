@@ -10,6 +10,7 @@ PIP := $(VENV)/bin/pip
 SERIAL ?= /dev/serial/by-id/usb-Kendryte_CanMV_001000000-if00
 API_HOST ?= 0.0.0.0
 API_PORT ?= 8000
+SERVICE ?=
 
 help:
 	@echo "Targets:"
@@ -56,3 +57,4 @@ deploy:
 	$(MAKE) backend-update
 	$(MAKE) frontend-update
 	$(MAKE) frontend-build
+	@if [ -n "$(SERVICE)" ]; then sudo systemctl restart "$(SERVICE)"; fi
