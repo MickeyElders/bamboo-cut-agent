@@ -122,10 +122,15 @@ export default function App() {
     setVideoError("");
     const peer = new RTCPeerConnection({ iceServers: [] });
     peerRef.current = peer;
+    peer.addTransceiver("video", { direction: "recvonly" });
 
     peer.ontrack = (event) => {
       if (videoRef.current) {
         videoRef.current.srcObject = event.streams[0];
+        void videoRef.current.play().catch((err) => {
+          setVideoError("Video play failed");
+          setLogLines((prev) => [`[ERR] video play failed: ${String(err)}`, ...prev].slice(0, 200));
+        });
         videoRef.current.onloadedmetadata = () => {
           const canvas = canvasRef.current;
           const video = videoRef.current;
@@ -146,6 +151,14 @@ export default function App() {
       }
     };
 
+    peer.oniceconnectionstatechange = () => {
+      setLogLines((prev) => [`[VIDEO] ICE state=${peer.iceConnectionState}`, ...prev].slice(0, 200));
+    };
+
+    peer.onsignalingstatechange = () => {
+      setLogLines((prev) => [`[VIDEO] Signaling state=${peer.signalingState}`, ...prev].slice(0, 200));
+    };
+
     const ws = new WebSocket(videoWsUrl());
     signalRef.current = ws;
 
@@ -157,12 +170,15 @@ export default function App() {
       const msg = JSON.parse(event.data) as { type: string; sdp?: string; candidate?: string; sdpMLineIndex?: number; detail?: string; state?: string };
       try {
         if (msg.type === "offer" && msg.sdp) {
+          setLogLines((prev) => ["[VIDEO] Offer received", ...prev].slice(0, 200));
           await peer.setRemoteDescription({ type: "offer", sdp: msg.sdp });
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+          setLogLines((prev) => ["[VIDEO] Answer sent", ...prev].slice(0, 200));
         } else if (msg.type === "ice" && msg.candidate) {
           await peer.addIceCandidate({ candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex ?? 0 });
+          setLogLines((prev) => ["[VIDEO] ICE candidate added", ...prev].slice(0, 200));
         } else if (msg.type === "error") {
           setVideoError(msg.detail ?? "Video backend error");
           setLogLines((prev) => [`[ERR] ${msg.detail ?? "Video backend error"}`, ...prev].slice(0, 200));

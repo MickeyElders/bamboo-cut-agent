@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 from dataclasses import dataclass
@@ -51,6 +52,8 @@ class WebRtcSession:
         self.config = config
         self.pipeline = None
         self.webrtc = None
+        self.bus = None
+        self.bus_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         await self.ws.accept()
@@ -64,9 +67,16 @@ class WebRtcSession:
         self.webrtc.connect("on-ice-candidate", self._on_ice_candidate)
         self.webrtc.connect("notify::ice-gathering-state", self._on_gathering_state)
         self.pipeline.set_state(Gst.State.PLAYING)
+        self.bus = self.pipeline.get_bus()
+        self.bus_task = asyncio.create_task(self._watch_bus())
         await self._send({"type": "state", "state": "starting"})
 
     async def stop(self) -> None:
+        if self.bus_task is not None:
+            self.bus_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self.bus_task
+            self.bus_task = None
         if self.pipeline is not None:
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
@@ -157,6 +167,29 @@ class WebRtcSession:
 
     async def _send(self, payload: dict[str, Any]) -> None:
         await self.ws.send_text(json.dumps(payload))
+
+    async def _watch_bus(self) -> None:
+        if self.bus is None:
+            return
+
+        while True:
+            msg = self.bus.timed_pop_filtered(
+                100 * Gst.MSECOND,
+                Gst.MessageType.ERROR | Gst.MessageType.WARNING | Gst.MessageType.STATE_CHANGED,
+            )
+            if msg is None:
+                await asyncio.sleep(0)
+                continue
+
+            if msg.type == Gst.MessageType.ERROR:
+                err, dbg = msg.parse_error()
+                await self._send({"type": "error", "detail": f"GStreamer error: {err}; {dbg or ''}"})
+            elif msg.type == Gst.MessageType.WARNING:
+                warn, dbg = msg.parse_warning()
+                await self._send({"type": "state", "state": f"warning: {warn}; {dbg or ''}"})
+            elif msg.type == Gst.MessageType.STATE_CHANGED and msg.src == self.pipeline:
+                _old, new, _pending = msg.parse_state_changed()
+                await self._send({"type": "state", "state": f"pipeline={new.value_nick}"})
 
 
 class VideoWebRtcManager:
