@@ -1,4 +1,4 @@
-.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy
+.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service service-status service-restart service-logs
 
 SHELL := /bin/bash
 
@@ -11,6 +11,7 @@ SERIAL ?= /dev/serial/by-id/usb-Kendryte_CanMV_001000000-if00
 API_HOST ?= 0.0.0.0
 API_PORT ?= 8000
 SERVICE ?=
+SERVICE_FILE ?= bamboo-backend.service
 
 help:
 	@echo "Targets:"
@@ -24,6 +25,10 @@ help:
 	@echo "  frontend-run     Run frontend dev server"
 	@echo "  canmv-tail       Tail CanMV serial output"
 	@echo "  deploy           Pull updates, update deps, rebuild frontend"
+	@echo "  install-service  Install systemd backend service"
+	@echo "  service-status   Show backend service status"
+	@echo "  service-restart  Restart backend service"
+	@echo "  service-logs     Tail backend service logs"
 
 backend-venv:
 	$(PY) -m venv $(VENV)
@@ -64,3 +69,19 @@ deploy:
 			echo "Skip restart: systemd unit $(SERVICE) not found"; \
 		fi; \
 	fi
+
+install-service:
+	@if [ ! -f systemd/bamboo-backend.env ]; then cp systemd/bamboo-backend.env.example systemd/bamboo-backend.env; fi
+	sudo cp systemd/$(SERVICE_FILE) /etc/systemd/system/$(SERVICE_FILE)
+	sudo systemctl daemon-reload
+	sudo systemctl enable $(SERVICE_FILE)
+	sudo systemctl restart $(SERVICE_FILE)
+
+service-status:
+	sudo systemctl status $(SERVICE_FILE) --no-pager
+
+service-restart:
+	sudo systemctl restart $(SERVICE_FILE)
+
+service-logs:
+	sudo journalctl -u $(SERVICE_FILE) -f

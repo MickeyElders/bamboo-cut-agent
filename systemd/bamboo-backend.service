@@ -1,0 +1,16 @@
+[Unit]
+Description=Bamboo Cut Agent Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/bamboo-cut-agent
+EnvironmentFile=-/home/pi/bamboo-cut-agent/systemd/bamboo-backend.env
+ExecStart=/home/pi/bamboo-cut-agent/backend/.venv/bin/python -m uvicorn backend.app.main:app --host ${API_HOST} --port ${API_PORT}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

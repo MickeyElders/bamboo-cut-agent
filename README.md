@@ -60,6 +60,25 @@ export VIDEO_BITRATE_KBPS=2500
 
 The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/video`.
 
+## Systemd Service
+The repository includes a backend `systemd` unit and env file template:
+- `systemd/bamboo-backend.service`
+- `systemd/bamboo-backend.env.example`
+
+Install and enable it on Raspberry Pi:
+```bash
+cp systemd/bamboo-backend.env.example systemd/bamboo-backend.env
+make install-service
+```
+
+Useful commands:
+```bash
+make service-status
+make service-restart
+make service-logs
+make deploy SERVICE=bamboo-backend.service
+```
+
 ## CanMV Communication
 CanMV can send AI results by either WebSocket (recommended) or serial.
 
