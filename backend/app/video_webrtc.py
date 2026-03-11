@@ -207,7 +207,13 @@ class VideoWebRtcManager:
         session = WebRtcSession(ws=ws, loop=asyncio.get_running_loop(), config=self.config)
         self.sessions.add(session)
         try:
-            await session.start()
+            try:
+                await session.start()
+            except Exception as exc:
+                await ws.accept()
+                await ws.send_text(json.dumps({"type": "error", "detail": f"Video pipeline start failed: {exc}"}))
+                await ws.close(code=1011)
+                return
             while True:
                 text = await ws.receive_text()
                 await session.handle_message(text)

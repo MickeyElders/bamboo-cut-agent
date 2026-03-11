@@ -44,8 +44,10 @@ sudo apt install -y python3-gi python3-gst-1.0 \
   gir1.2-gst-plugins-bad-1.0 gstreamer1.0-tools \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
-  gstreamer1.0-libav
+  gstreamer1.0-libav gstreamer1.0-nice
 ```
+
+`webrtcbin` also requires ICE support from `gstreamer1.0-nice`. If it is missing, backend logs show errors like `sendrecv can't handle caps ... Your GStreamer installation is missing a plug-in`.
 
 If the backend runs inside `backend/.venv`, recreate it with system packages exposed so `python3-gi` is importable:
 ```bash
