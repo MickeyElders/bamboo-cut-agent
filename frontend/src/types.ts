@@ -18,3 +18,13 @@ export type MotorStatus = {
   cutter_down: boolean;
   last_action: string;
 };
+
+export type VideoConfig = {
+  enabled: boolean;
+  device: string;
+  width: number;
+  height: number;
+  fps: number;
+  encoder: string;
+  bitrate_kbps: number;
+};

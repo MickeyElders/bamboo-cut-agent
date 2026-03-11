@@ -32,6 +32,34 @@ npm run dev
 UI default URL: `http://localhost:5173`
 Backend default URL: `http://localhost:8000`
 
+## Video Streaming
+The UI now expects backend-provided WebRTC video instead of browser `getUserMedia`.
+
+### Raspberry Pi packages
+Install system packages for GStreamer WebRTC and Python GI bindings:
+```bash
+sudo apt update
+sudo apt install -y python3-gi python3-gst-1.0 \
+  gir1.2-gst-plugins-base-1.0 gir1.2-gstreamer-1.0 \
+  gir1.2-gst-plugins-bad-1.0 gstreamer1.0-tools \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav
+```
+
+### Video environment
+Set these before starting the backend when using the HDMI capture card:
+```bash
+export VIDEO_DEVICE=/dev/v4l/by-id/usb-MACROSILICON_V-Z624_20210621-video-index0
+export VIDEO_WIDTH=1280
+export VIDEO_HEIGHT=720
+export VIDEO_FPS=30
+export VIDEO_ENCODER=x264enc
+export VIDEO_BITRATE_KBPS=2500
+```
+
+The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/video`.
+
 ## CanMV Communication
 CanMV can send AI results by either WebSocket (recommended) or serial.
 

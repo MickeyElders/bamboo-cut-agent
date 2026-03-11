@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .canmv_bridge import CanMvBridge
 from .models import AiFrame, MotorCommand, MotorStatus
 from .motor_control import MotorController
+from .video_webrtc import VideoWebRtcManager
 from .ws_manager import WebSocketHub
 
 app = FastAPI(title="Bamboo Cut Backend", version="0.1.0")
@@ -25,6 +26,7 @@ app.add_middleware(
 
 hub = WebSocketHub()
 motor = MotorController()
+video = VideoWebRtcManager()
 canmv_bridge = CanMvBridge(
     hub=hub,
     serial_port=os.getenv("CANMV_SERIAL_PORT"),
@@ -40,6 +42,7 @@ async def startup() -> None:
 @app.on_event("shutdown")
 async def shutdown() -> None:
     await canmv_bridge.stop()
+    await video.shutdown()
 
 
 @app.get("/api/health")
@@ -54,6 +57,11 @@ async def canmv_config() -> dict[str, Any]:
         "serial_port": os.getenv("CANMV_SERIAL_PORT"),
         "baudrate": int(os.getenv("CANMV_BAUDRATE", "115200")),
     }
+
+
+@app.get("/api/video/config")
+async def video_config() -> dict[str, Any]:
+    return video.describe()
 
 
 @app.get("/api/motor/status", response_model=MotorStatus)
@@ -97,3 +105,8 @@ async def ws_canmv(ws: WebSocket) -> None:
         return
     except Exception:
         return
+
+
+@app.websocket("/ws/video")
+async def ws_video(ws: WebSocket) -> None:
+    await video.run_session(ws)
