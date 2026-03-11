@@ -47,6 +47,12 @@ sudo apt install -y python3-gi python3-gst-1.0 \
   gstreamer1.0-libav
 ```
 
+If the backend runs inside `backend/.venv`, recreate it with system packages exposed so `python3-gi` is importable:
+```bash
+rm -rf backend/.venv
+make backend-install
+```
+
 ### Video environment
 Set these before starting the backend when using the HDMI capture card:
 ```bash
@@ -64,11 +70,15 @@ The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/vide
 The repository includes a backend `systemd` unit and env file template:
 - `systemd/bamboo-backend.service`
 - `systemd/bamboo-backend.env.example`
+- `systemd/bamboo-frontend.service`
+- `systemd/bamboo-frontend.env.example`
 
 Install and enable it on Raspberry Pi:
 ```bash
 cp systemd/bamboo-backend.env.example systemd/bamboo-backend.env
 make install-service
+cp systemd/bamboo-frontend.env.example systemd/bamboo-frontend.env
+make install-frontend-service
 ```
 
 Useful commands:
@@ -76,7 +86,10 @@ Useful commands:
 make service-status
 make service-restart
 make service-logs
-make deploy SERVICE=bamboo-backend.service
+make frontend-service-status
+make frontend-service-restart
+make frontend-service-logs
+make deploy SERVICE=bamboo-backend.service FRONTEND_SERVICE=bamboo-frontend.service
 ```
 
 ## CanMV Communication
@@ -114,4 +127,4 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ## Notes
 - Motor I/O is currently mocked in `backend/app/motor_control.py`.
 - Replace with GPIO/relay driver logic on Raspberry Pi.
-- Frontend camera is USB UVC via browser `getUserMedia`.
+- Frontend video is provided by backend WebRTC streaming.

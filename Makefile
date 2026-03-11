@@ -1,4 +1,4 @@
-.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service service-status service-restart service-logs
+.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service install-frontend-service service-status service-restart service-logs frontend-service-status frontend-service-restart frontend-service-logs
 
 SHELL := /bin/bash
 
@@ -12,6 +12,8 @@ API_HOST ?= 0.0.0.0
 API_PORT ?= 8000
 SERVICE ?=
 SERVICE_FILE ?= bamboo-backend.service
+FRONTEND_SERVICE ?=
+FRONTEND_SERVICE_FILE ?= bamboo-frontend.service
 
 help:
 	@echo "Targets:"
@@ -26,12 +28,16 @@ help:
 	@echo "  canmv-tail       Tail CanMV serial output"
 	@echo "  deploy           Pull updates, update deps, rebuild frontend"
 	@echo "  install-service  Install systemd backend service"
+	@echo "  install-frontend-service Install systemd frontend service"
 	@echo "  service-status   Show backend service status"
 	@echo "  service-restart  Restart backend service"
 	@echo "  service-logs     Tail backend service logs"
+	@echo "  frontend-service-status  Show frontend service status"
+	@echo "  frontend-service-restart Restart frontend service"
+	@echo "  frontend-service-logs    Tail frontend service logs"
 
 backend-venv:
-	$(PY) -m venv $(VENV)
+	$(PY) -m venv --system-site-packages $(VENV)
 
 backend-install: backend-venv
 	$(PIP) install -r backend/requirements.txt
@@ -65,7 +71,14 @@ deploy:
 		if systemctl list-unit-files | grep -q "^$(SERVICE)"; then \
 			sudo systemctl restart "$(SERVICE)"; \
 		else \
-			echo "Skip restart: systemd unit $(SERVICE) not found"; \
+			 echo "Skip restart: systemd unit $(SERVICE) not found"; \
+		fi; \
+	fi
+	@if [ -n "$(FRONTEND_SERVICE)" ]; then \
+		if systemctl list-unit-files | grep -q "^$(FRONTEND_SERVICE)"; then \
+			sudo systemctl restart "$(FRONTEND_SERVICE)"; \
+		else \
+			echo "Skip restart: systemd unit $(FRONTEND_SERVICE) not found"; \
 		fi; \
 	fi
 
@@ -76,6 +89,13 @@ install-service:
 	sudo systemctl enable $(SERVICE_FILE)
 	sudo systemctl restart $(SERVICE_FILE)
 
+install-frontend-service:
+	@if [ ! -f systemd/bamboo-frontend.env ]; then cp systemd/bamboo-frontend.env.example systemd/bamboo-frontend.env; fi
+	sudo cp systemd/$(FRONTEND_SERVICE_FILE) /etc/systemd/system/$(FRONTEND_SERVICE_FILE)
+	sudo systemctl daemon-reload
+	sudo systemctl enable $(FRONTEND_SERVICE_FILE)
+	sudo systemctl restart $(FRONTEND_SERVICE_FILE)
+
 service-status:
 	sudo systemctl status $(SERVICE_FILE) --no-pager
 
@@ -84,3 +104,12 @@ service-restart:
 
 service-logs:
 	sudo journalctl -u $(SERVICE_FILE) -f
+
+frontend-service-status:
+	sudo systemctl status $(FRONTEND_SERVICE_FILE) --no-pager
+
+frontend-service-restart:
+	sudo systemctl restart $(FRONTEND_SERVICE_FILE)
+
+frontend-service-logs:
+	sudo journalctl -u $(FRONTEND_SERVICE_FILE) -f

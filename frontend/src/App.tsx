@@ -10,6 +10,7 @@ const EMPTY_STATUS: MotorStatus = {
 
 const EMPTY_VIDEO: VideoConfig = {
   enabled: false,
+  detail: "",
   device: "-",
   width: 0,
   height: 0,
@@ -53,7 +54,18 @@ export default function App() {
 
   useEffect(() => {
     fetchMotorStatus().then(setMotor).catch(() => undefined);
-    fetchVideoConfig().then(setVideoConfig).catch(() => undefined);
+    fetchVideoConfig()
+      .then((config) => {
+        setVideoConfig(config);
+        if (!config.enabled) {
+          setVideoError(config.detail || "Video backend unavailable");
+          setLogLines((prev) => [`[ERR] ${config.detail || "Video backend unavailable"}`, ...prev].slice(0, 200));
+        }
+      })
+      .catch((err) => {
+        setVideoError("Failed to fetch video config");
+        setLogLines((prev) => [`[ERR] video config failed: ${String(err)}`, ...prev].slice(0, 200));
+      });
   }, []);
 
   useEffect(() => {
@@ -211,6 +223,7 @@ export default function App() {
         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
           <div>Source: <strong>{videoConfig.device}</strong></div>
           <div>Mode: <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
+          {!videoConfig.enabled ? <div style={{ color: "#9d3020", fontWeight: 600 }}>Backend video disabled: {videoConfig.detail || "unknown error"}</div> : null}
           <div style={{ display: "flex", gap: 8 }}>
             <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Start Stream</button>
             <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Stream</button>

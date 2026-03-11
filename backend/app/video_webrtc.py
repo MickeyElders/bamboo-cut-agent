@@ -18,11 +18,13 @@ try:
 
     Gst.init(None)
     GST_AVAILABLE = True
+    GST_ERROR = ""
 except Exception:
     Gst = None
     GstSdp = None
     GstWebRTC = None
     GST_AVAILABLE = False
+    GST_ERROR = "GStreamer Python bindings unavailable"
 
 
 @dataclass
@@ -188,6 +190,7 @@ class VideoWebRtcManager:
     def describe(self) -> dict[str, Any]:
         return {
             "enabled": GST_AVAILABLE,
+            "detail": GST_ERROR if not GST_AVAILABLE else "",
             "device": self.config.device,
             "width": self.config.width,
             "height": self.config.height,

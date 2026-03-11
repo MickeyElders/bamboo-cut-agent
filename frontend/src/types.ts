@@ -21,6 +21,7 @@ export type MotorStatus = {
 
 export type VideoConfig = {
   enabled: boolean;
+  detail?: string;
   device: string;
   width: number;
   height: number;

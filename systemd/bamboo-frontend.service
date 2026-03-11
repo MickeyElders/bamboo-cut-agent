@@ -1,0 +1,16 @@
+[Unit]
+Description=Bamboo Cut Agent Frontend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/bamboo-cut-agent/frontend
+EnvironmentFile=-/home/pi/bamboo-cut-agent/systemd/bamboo-frontend.env
+ExecStart=/usr/bin/npm run preview -- --host ${FRONTEND_HOST} --port ${FRONTEND_PORT}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
