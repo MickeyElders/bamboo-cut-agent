@@ -58,7 +58,6 @@ canmv-tail:
 	cat $(SERIAL)
 
 deploy:
-	git -C . pull
 	$(MAKE) backend-update
 	$(MAKE) frontend-update
 	$(MAKE) frontend-build
