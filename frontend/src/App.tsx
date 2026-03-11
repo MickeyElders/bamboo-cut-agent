@@ -108,6 +108,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (videoConfig.enabled && !signalRef.current && !videoConnected) {
+      void startVideo();
+    }
+  }, [videoConfig.enabled, videoConnected]);
+
   async function startVideo() {
     if (signalRef.current || !videoConfig.enabled) {
       return;
