@@ -57,4 +57,10 @@ deploy:
 	$(MAKE) backend-update
 	$(MAKE) frontend-update
 	$(MAKE) frontend-build
-	@if [ -n "$(SERVICE)" ]; then sudo systemctl restart "$(SERVICE)"; fi
+	@if [ -n "$(SERVICE)" ]; then \
+		if systemctl list-unit-files | grep -q "^$(SERVICE)"; then \
+			sudo systemctl restart "$(SERVICE)"; \
+		else \
+			echo "Skip restart: systemd unit $(SERVICE) not found"; \
+		fi; \
+	fi
