@@ -102,29 +102,76 @@ if model_type == "AnchorBaseDet":
 inference_mode = "video"                                          # Inference mode: 'video'
 debug_mode = 0                                                    # Debug mode flag
 
-# --------------------------- USB AI result output ---------------------------
-# Send newline-delimited JSON over USB CDC (or REPL stdout if CDC is unavailable).
-USB_SEND_ENABLE = True
-USB_SEND_MIN_INTERVAL_MS = 100  # 10 Hz
-USB_SEND_USE_STDOUT_FALLBACK = False  # keep serial clean
+# ------------------------ Control/status transport --------------------------
+# HDMI carries video only.
+# Detection metadata, cut requests, and cut-line config are exchanged over
+# a serial transport exposed on GPIO, preferably UART.
+TRANSPORT_KIND = "uart"          # "uart" or "usb_cdc"
+TRANSPORT_BAUDRATE = 115200
+TRANSPORT_SEND_ENABLE = True
+TRANSPORT_SEND_MIN_INTERVAL_MS = 100  # 10 Hz
+TRANSPORT_USE_STDOUT_FALLBACK = False
+UART_PORT = 1                    # adjust to the board UART you wired
+UART_TX_PIN = None               # set explicit TX pin if your board requires it
+UART_RX_PIN = None               # set explicit RX pin if your board requires it
 
-try:
-    import usb_cdc
-    _usb_out = usb_cdc.data if hasattr(usb_cdc, "data") else usb_cdc
-except Exception:
-    _usb_out = None
+_transport = None
+_transport_rx_buffer = ""
 
-def _usb_write_line(s):
-    if not USB_SEND_ENABLE:
+def _init_transport():
+    if TRANSPORT_KIND == "uart":
+        try:
+            from machine import UART
+            kwargs = {}
+            if UART_TX_PIN is not None:
+                kwargs["tx"] = UART_TX_PIN
+            if UART_RX_PIN is not None:
+                kwargs["rx"] = UART_RX_PIN
+            return UART(UART_PORT, TRANSPORT_BAUDRATE, **kwargs)
+        except Exception:
+            return None
+
+    if TRANSPORT_KIND == "usb_cdc":
+        try:
+            import usb_cdc
+            return usb_cdc.data if hasattr(usb_cdc, "data") else usb_cdc
+        except Exception:
+            return None
+
+    return None
+
+_transport = _init_transport()
+
+def _transport_write_line(s):
+    if not TRANSPORT_SEND_ENABLE:
         return
     try:
-        if _usb_out is not None:
-            _usb_out.write(s.encode())
-        elif USB_SEND_USE_STDOUT_FALLBACK:
-            # Fallback: REPL stdout (still over USB)
+        if _transport is not None:
+            _transport.write(s.encode())
+        elif TRANSPORT_USE_STDOUT_FALLBACK:
             print(s, end="")
     except Exception:
         pass
+
+def _transport_read_available():
+    if _transport is None:
+        return ""
+    try:
+        any_fn = getattr(_transport, "any", None)
+        if callable(any_fn):
+            size = int(any_fn())
+            if size <= 0:
+                return ""
+            raw = _transport.read(size)
+        else:
+            return ""
+        if not raw:
+            return ""
+        if isinstance(raw, bytes):
+            return raw.decode(errors="ignore")
+        return str(raw)
+    except Exception:
+        return ""
 
 # Create and initialize the video/display pipeline with sensor auto-detect
 def _create_pipeline():
@@ -199,12 +246,12 @@ det_app = DetectionApp(inference_mode,kmodel_path,labels,model_input_size,anchor
 # Configure preprocessing for the model
 det_app.config_preprocess()
 
-# --------------------------- GPIO trigger config ----------------------------
-# When a detected object's center falls inside a fixed ROI on the screen,
-# output a digital level on a GPIO pin.
-# NOTE:
-# - Pin number/mapping depends on your CanMV K230 board; change TRIGGER_PIN.
-# - GPIO is 3.3V; use transistor/optocoupler if driving higher voltage/current.
+# -------------------------- Cut-line decision config -------------------------
+# CanMV is only responsible for:
+# 1) object detection
+# 2) checking whether the selected target reaches the configured cut line
+# 3) reporting cut_request over USB JSON
+# Motor/feed/cutter execution is handled on the Raspberry Pi side.
 TRIGGER_ENABLE = False
 TRIGGER_PIN = 32                 # TODO: set to your board's GPIO number
 TRIGGER_ACTIVE_LEVEL = 1         # 1=HIGH active, 0=LOW active
@@ -214,6 +261,7 @@ TRIGGER_TARGET_ID = None         # e.g. 0 or None; takes precedence over label
 TRIGGER_ROI_CENTER = None        # None -> screen center; or (x, y) in display coords
 TRIGGER_ROI_HALF_SIZE = (30, 30) # (half_w, half_h) in pixels
 TRIGGER_USE_CENTER_LINE = True   # True -> use vertical center line "strip" as ROI
+TRIGGER_DECISION_ENABLE = True   # keep cut-line judgement active even if GPIO output is disabled
 TRIGGER_LINE_TOLERANCE_PX = 20   # center line tolerance (+/- pixels)
 TRIGGER_LINE_COLOR = (255, 0, 0) # red
 TRIGGER_LINE_THICKNESS = 2
@@ -228,12 +276,16 @@ OSD_INFO_HINT_COLOR = (255, 255, 0)  # yellow
 OSD_INFO_XY = (8, 8)
 OSD_INFO_LINE_H = 18
 OSD_INFO_UPDATE_MS = 250
+OSD_SHOW_CENTER_GUIDE = False
 OSD_DRAW_CUT_ZONE = True
 OSD_DRAW_TARGET_MARK = True
 OSD_TARGET_MARK_SIZE = 10
 OSD_TARGET_COLOR = (0, 255, 255)       # cyan
 OSD_TARGET_HIT_COLOR = (255, 0, 255)   # magenta
 OSD_CUTLINE_ACTIVE_COLOR = (0, 255, 0) # green when overlapping/cutting
+
+CUT_LINE_RATIO_X = 0.5
+CUT_TOLERANCE_RATIO_X = 0.015
 
 try:
     from machine import Pin  # CanMV/MicroPython style
@@ -417,144 +469,83 @@ def _fmt_ms(ms):
         return "%dms" % ms
     return "%.2fs" % (ms / 1000.0)
 
+def _clamp(value, minimum, maximum):
+    if value < minimum:
+        return minimum
+    if value > maximum:
+        return maximum
+    return value
+
+def _current_cut_config():
+    return {
+        "line_ratio_x": round(float(CUT_LINE_RATIO_X), 4),
+        "tolerance_ratio_x": round(float(CUT_TOLERANCE_RATIO_X), 4),
+        "show_guide": bool(OSD_SHOW_CENTER_GUIDE),
+        "min_hits": int(TRIGGER_MIN_HITS),
+        "hold_ms": int(TRIGGER_HOLD_MS),
+    }
+
+def _apply_cut_config(payload):
+    global CUT_LINE_RATIO_X, CUT_TOLERANCE_RATIO_X, OSD_SHOW_CENTER_GUIDE, TRIGGER_MIN_HITS, TRIGGER_HOLD_MS
+    if not isinstance(payload, dict):
+        return
+
+    try:
+        if "line_ratio_x" in payload and payload["line_ratio_x"] is not None:
+            CUT_LINE_RATIO_X = _clamp(float(payload["line_ratio_x"]), 0.0, 1.0)
+    except Exception:
+        pass
+
+    try:
+        if "tolerance_ratio_x" in payload and payload["tolerance_ratio_x"] is not None:
+            CUT_TOLERANCE_RATIO_X = _clamp(float(payload["tolerance_ratio_x"]), 0.0, 0.25)
+    except Exception:
+        pass
+
+    try:
+        if "show_guide" in payload and payload["show_guide"] is not None:
+            OSD_SHOW_CENTER_GUIDE = bool(payload["show_guide"])
+    except Exception:
+        pass
+
+    try:
+        if "min_hits" in payload and payload["min_hits"] is not None:
+            TRIGGER_MIN_HITS = int(_clamp(int(payload["min_hits"]), 1, 20))
+    except Exception:
+        pass
+
+    try:
+        if "hold_ms" in payload and payload["hold_ms"] is not None:
+            TRIGGER_HOLD_MS = int(_clamp(int(payload["hold_ms"]), 0, 5000))
+    except Exception:
+        pass
+
+def _process_usb_commands():
+    global _usb_rx_buffer
+    chunk = _usb_read_available()
+    if not chunk:
+        return
+
+    _usb_rx_buffer += chunk
+    while "\n" in _usb_rx_buffer:
+        line, _usb_rx_buffer = _usb_rx_buffer.split("\n", 1)
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if data.get("type") == "cut_config":
+            _apply_cut_config(data.get("payload"))
+
 trigger_pin = _init_trigger_pin()
 trigger_active = False
 trigger_hits = 0
 trigger_last_on_ms = 0
 trigger_prev_active = False
-
-# -------------------------- Industrial control I/O --------------------------
-# Simple PLC-like sequence:
-#   power-on -> feed motor ON
-#   object overlaps center cut line -> stop feed -> cutter down -> (optional up) -> feed ON
-# NOTE: GPIO is 3.3V; use proper driver (MOSFET/relay/optocoupler) for motors/solenoids.
-CTRL_ENABLE = False
-FEED_ENABLE_PIN = 5              # IO5 (header pin 11)
-FEED_ENABLE_ACTIVE_LEVEL = 1
-FEED_ENABLE_INACTIVE_LEVEL = 0 if FEED_ENABLE_ACTIVE_LEVEL else 1
-
-FEED_DIR_PIN = None              # optional direction pin (set to IO number)
-FEED_DIR_LEVEL = 1               # direction level when FEED_DIR_PIN is set
-
-# Pushrod control (extend in WAIT_FEED, retract in FEEDING)
-# NOTE: set pins to match your driver. If your driver uses DIR+EN, adjust _set_pushrod().
-PUSHROD_EXTEND_PIN = 19          # TODO: set to your board's GPIO number
-PUSHROD_RETRACT_PIN = 20         # TODO: set to your board's GPIO number
-PUSHROD_ACTIVE_LEVEL = 1
-PUSHROD_INACTIVE_LEVEL = 0 if PUSHROD_ACTIVE_LEVEL else 1
-
-# Photoelectric sensor for "bamboo entered" (level input)
-FEED_SENSOR_ENABLE = True
-FEED_SENSOR_PIN = 18             # TODO: set to your board's GPIO number
-FEED_SENSOR_ACTIVE_LEVEL = 0     # common NPN output = LOW active
-FEED_SENSOR_PULL = "up"          # "up", "down", or None
-FEED_SENSOR_DEBOUNCE_MS = 50
-
-CUT_DOWN_PIN = 6                 # IO6 (header pin 12)
-CUT_DOWN_ACTIVE_LEVEL = 1
-CUT_DOWN_INACTIVE_LEVEL = 0 if CUT_DOWN_ACTIVE_LEVEL else 1
-
-CUT_UP_PIN = None                # optional separate "up" control pin
-CUT_UP_ACTIVE_LEVEL = 1
-CUT_UP_INACTIVE_LEVEL = 0 if CUT_UP_ACTIVE_LEVEL else 1
-
-CUT_DOWN_MS = 300                # cutter down time
-CUT_HOLD_MS = 150                # dwell time at bottom (0 to disable)
-CUT_UP_MS = 300                  # cutter up time (if CUT_UP_PIN set; otherwise ignored)
-CUT_SETTLE_MS = 200              # settle before resuming feed
-CUT_COOLDOWN_MS = 800            # minimum interval between cuts
-
-def _ticks_reached(now_ms, target_ms):
-    return _ticks_diff(now_ms, target_ms) >= 0
-
-def _init_out_pin(pin_no, inactive_level):
-    if not CTRL_ENABLE or Pin is None or pin_no is None:
-        return None
-    p = Pin(int(pin_no), Pin.OUT)
-    p.value(inactive_level)
-    return p
-
-def _init_in_pin(pin_no, pull):
-    if not CTRL_ENABLE or Pin is None or pin_no is None:
-        return None
-    if pull == "up" and hasattr(Pin, "PULL_UP"):
-        return Pin(int(pin_no), Pin.IN, Pin.PULL_UP)
-    if pull == "down" and hasattr(Pin, "PULL_DOWN"):
-        return Pin(int(pin_no), Pin.IN, Pin.PULL_DOWN)
-    return Pin(int(pin_no), Pin.IN)
-
-feed_en_pin = _init_out_pin(FEED_ENABLE_PIN, FEED_ENABLE_INACTIVE_LEVEL)
-feed_dir_pin = _init_out_pin(FEED_DIR_PIN, 0)
-pushrod_extend_pin = _init_out_pin(PUSHROD_EXTEND_PIN, PUSHROD_INACTIVE_LEVEL)
-pushrod_retract_pin = _init_out_pin(PUSHROD_RETRACT_PIN, PUSHROD_INACTIVE_LEVEL)
-cut_down_pin = _init_out_pin(CUT_DOWN_PIN, CUT_DOWN_INACTIVE_LEVEL)
-cut_up_pin = _init_out_pin(CUT_UP_PIN, CUT_UP_INACTIVE_LEVEL)
-feed_sensor_pin = _init_in_pin(FEED_SENSOR_PIN, FEED_SENSOR_PULL)
-
-feed_enabled = False
-cut_down_enabled = False
-cut_up_enabled = False
-pushrod_state = "STOP"  # STOP, EXTEND, RETRACT
-feed_present = False
-feed_present_prev = False
-feed_sensor_state = False
-feed_sensor_candidate = None
-feed_sensor_candidate_ms = 0
-feed_sensor_last_true_ms = -10000000
-
-def _set_feed(enable):
-    global feed_enabled
-    if feed_dir_pin is not None and enable:
-        feed_dir_pin.value(1 if FEED_DIR_LEVEL else 0)
-    if feed_en_pin is not None:
-        feed_en_pin.value(FEED_ENABLE_ACTIVE_LEVEL if enable else FEED_ENABLE_INACTIVE_LEVEL)
-    feed_enabled = bool(enable)
-
-def _set_cut(down, up):
-    global cut_down_enabled, cut_up_enabled
-    if cut_down_pin is not None:
-        cut_down_pin.value(CUT_DOWN_ACTIVE_LEVEL if down else CUT_DOWN_INACTIVE_LEVEL)
-    if cut_up_pin is not None:
-        cut_up_pin.value(CUT_UP_ACTIVE_LEVEL if up else CUT_UP_INACTIVE_LEVEL)
-    cut_down_enabled = bool(down)
-    cut_up_enabled = bool(up)
-
-def _set_pushrod(mode):
-    global pushrod_state
-    # mode: "EXTEND", "RETRACT", "STOP"
-    if pushrod_extend_pin is not None:
-        pushrod_extend_pin.value(PUSHROD_ACTIVE_LEVEL if mode == "EXTEND" else PUSHROD_INACTIVE_LEVEL)
-    if pushrod_retract_pin is not None:
-        pushrod_retract_pin.value(PUSHROD_ACTIVE_LEVEL if mode == "RETRACT" else PUSHROD_INACTIVE_LEVEL)
-    pushrod_state = mode
-
-def _read_feed_sensor(now_ms):
-    global feed_sensor_state, feed_sensor_candidate, feed_sensor_candidate_ms, feed_sensor_last_true_ms
-    if not FEED_SENSOR_ENABLE or feed_sensor_pin is None:
-        return True
-
-    raw = 1 if feed_sensor_pin.value() else 0
-    active = (raw == FEED_SENSOR_ACTIVE_LEVEL)
-
-    if active != feed_sensor_state:
-        if feed_sensor_candidate != active:
-            feed_sensor_candidate = active
-            feed_sensor_candidate_ms = now_ms
-        elif _ticks_diff(now_ms, feed_sensor_candidate_ms) >= FEED_SENSOR_DEBOUNCE_MS:
-            feed_sensor_state = active
-            feed_sensor_candidate = None
-            if feed_sensor_state:
-                feed_sensor_last_true_ms = now_ms
-    else:
-        feed_sensor_candidate = None
-        if feed_sensor_state:
-            feed_sensor_last_true_ms = now_ms
-
-    return bool(feed_sensor_state)
-
-ctrl_state = "WAIT_FEED"  # WAIT_FEED, FEEDING, CUT_DOWN, CUT_HOLD, CUT_UP, CUT_SETTLE
-ctrl_until_ms = 0
-ctrl_last_cut_ms = -10000000
 
 _fps = 0.0
 _fps_frames = 0
@@ -562,6 +553,87 @@ _fps_last_ms = _ticks_ms()
 _start_ms = _fps_last_ms
 _info_last_ms = -10000000
 _info_lines = []
+_loop_ema_ms = None
+_infer_ema_ms = None
+_status_temp_c = None
+
+STATUS_EMA_ALPHA = 0.2
+
+def _ema(prev, value, alpha=STATUS_EMA_ALPHA):
+    try:
+        value = float(value)
+    except Exception:
+        return prev
+    if prev is None:
+        return value
+    return (float(prev) * (1.0 - alpha)) + (value * alpha)
+
+def _clamp_percent(value):
+    if value is None:
+        return None
+    try:
+        value = float(value)
+    except Exception:
+        return None
+    if value < 0.0:
+        value = 0.0
+    if value > 100.0:
+        value = 100.0
+    return round(value, 1)
+
+def _get_memory_percent():
+    try:
+        if hasattr(gc, "mem_alloc") and hasattr(gc, "mem_free"):
+            used = float(gc.mem_alloc())
+            free = float(gc.mem_free())
+            total = used + free
+            if total > 0:
+                return round((used * 100.0) / total, 1)
+    except Exception:
+        pass
+    return None
+
+def _read_temperature_c():
+    candidates = []
+    try:
+        import machine
+        candidates.extend([
+            getattr(machine, "temperature", None),
+            getattr(machine, "temp", None),
+            getattr(machine, "get_temperature", None),
+            getattr(machine, "read_temperature", None),
+        ])
+    except Exception:
+        pass
+
+    for candidate in candidates:
+        try:
+            value = candidate() if callable(candidate) else candidate
+            if value is None:
+                continue
+            return round(float(value), 1)
+        except Exception:
+            pass
+    return None
+
+def _build_canmv_status():
+    cpu_percent = None
+    kpu_percent = None
+
+    try:
+        if _loop_ema_ms is not None and float(_loop_ema_ms) > 0 and _infer_ema_ms is not None:
+            kpu_percent = _clamp_percent((float(_infer_ema_ms) / float(_loop_ema_ms)) * 100.0)
+            cpu_percent = _clamp_percent(((float(_loop_ema_ms) - float(_infer_ema_ms)) / float(_loop_ema_ms)) * 100.0)
+    except Exception:
+        cpu_percent = None
+        kpu_percent = None
+
+    return {
+        "cpu_percent": cpu_percent,
+        "kpu_percent": kpu_percent,
+        "memory_percent": _get_memory_percent(),
+        "temperature_c": _status_temp_c,
+    }
 
 def _split_res(res):
     """
@@ -647,8 +719,15 @@ try:
     _usb_last_ms = _ticks_ms()
     while True:
         with ScopedTiming("total", 1):
+            _loop_begin_ms = _ticks_ms()
+            _status_temp_c = _read_temperature_c()
+            _process_usb_commands()
+
             img = pl.get_frame()                          # Capture current frame
+
+            _infer_begin_ms = _ticks_ms()
             res = det_app.run(img)                        # Run inference
+            _infer_ms = _ticks_diff(_ticks_ms(), _infer_begin_ms)
             res_draw, dets = _split_res(res)
             now_ms = _ticks_ms()
 
@@ -660,31 +739,19 @@ try:
                 _fps_frames = 0
                 _fps_last_ms = now_ms
 
-            # USB CDC output (AI detections)
-            if USB_SEND_ENABLE and _ticks_diff(now_ms, _usb_last_ms) >= USB_SEND_MIN_INTERVAL_MS:
-                payload = {
-                    "timestamp": time.time(),
-                    "fps": _fps,
-                    "detections": _build_detection_list(dets),
-                }
-                _usb_write_line(json.dumps(payload) + "\n")
-                _usb_last_ms = now_ms
-
-            # Feed sensor (photoelectric) for WAIT_FEED -> FEEDING transition
-            feed_present_prev = feed_present
-            feed_present = _read_feed_sensor(now_ms)
-            feed_present_rise = feed_present and (not feed_present_prev)
-
-            # Trigger GPIO if an object's center is within the fixed ROI.
+            # Cut-line decision using CanMV-native detection coordinates.
             best_det = None
             line_x = None
+            line_tol_px = None
             best_center = None
             overlap_now = False
-            if TRIGGER_ENABLE and trigger_pin is not None:
+            trigger_rise = False
+            if TRIGGER_DECISION_ENABLE:
                 if TRIGGER_USE_CENTER_LINE:
-                    line_x = display_size[0] // 2
+                    line_x = int(float(display_size[0]) * float(CUT_LINE_RATIO_X))
+                    line_tol_px = max(1, int(float(display_size[0]) * float(CUT_TOLERANCE_RATIO_X)))
                     roi_center = (line_x, display_size[1] // 2)
-                    roi_half_size = (TRIGGER_LINE_TOLERANCE_PX, display_size[1] // 2)
+                    roi_half_size = (line_tol_px, display_size[1] // 2)
                 else:
                     roi_center = TRIGGER_ROI_CENTER or (display_size[0] // 2, display_size[1] // 2)
                     roi_half_size = TRIGGER_ROI_HALF_SIZE
@@ -711,89 +778,37 @@ try:
                     if trigger_active and _ticks_diff(now_ms, trigger_last_on_ms) >= TRIGGER_HOLD_MS:
                         trigger_active = False
 
-                trigger_pin.value(TRIGGER_ACTIVE_LEVEL if trigger_active else TRIGGER_INACTIVE_LEVEL)
-
-            # Industrial control: feed/cut sequence
-            if CTRL_ENABLE and (feed_en_pin is not None or cut_down_pin is not None or cut_up_pin is not None):
+                if trigger_pin is not None:
+                    trigger_pin.value(TRIGGER_ACTIVE_LEVEL if trigger_active else TRIGGER_INACTIVE_LEVEL)
                 trigger_rise = trigger_active and (not trigger_prev_active)
+            trigger_prev_active = trigger_active
 
-                if ctrl_state == "WAIT_FEED":
-                    _set_cut(False, False)
-                    _set_feed(False)
-                    _set_pushrod("EXTEND")
-                    if feed_present_rise:
-                        ctrl_state = "FEEDING"
-
-                elif ctrl_state == "FEEDING":
-                    _set_cut(False, False)
-                    _set_pushrod("RETRACT")
-                    _set_feed(True)
-                    if trigger_rise and _ticks_diff(now_ms, ctrl_last_cut_ms) >= CUT_COOLDOWN_MS:
-                        ctrl_state = "CUT_DOWN"
-                        ctrl_until_ms = now_ms + CUT_DOWN_MS
-                        _set_feed(False)
-                        _set_cut(True, False)
-
-                elif ctrl_state == "CUT_DOWN":
-                    _set_feed(False)
-                    _set_pushrod("RETRACT")
-                    _set_cut(True, False)
-                    if _ticks_reached(now_ms, ctrl_until_ms):
-                        _set_cut(False, False)
-                        if CUT_HOLD_MS and CUT_HOLD_MS > 0:
-                            ctrl_state = "CUT_HOLD"
-                            ctrl_until_ms = now_ms + CUT_HOLD_MS
-                        elif cut_up_pin is not None and CUT_UP_MS and CUT_UP_MS > 0:
-                            ctrl_state = "CUT_UP"
-                            ctrl_until_ms = now_ms + CUT_UP_MS
-                            _set_cut(False, True)
-                        else:
-                            ctrl_state = "CUT_SETTLE"
-                            ctrl_until_ms = now_ms + CUT_SETTLE_MS
-
-                elif ctrl_state == "CUT_HOLD":
-                    _set_feed(False)
-                    _set_pushrod("RETRACT")
-                    _set_cut(False, False)
-                    if _ticks_reached(now_ms, ctrl_until_ms):
-                        if cut_up_pin is not None and CUT_UP_MS and CUT_UP_MS > 0:
-                            ctrl_state = "CUT_UP"
-                            ctrl_until_ms = now_ms + CUT_UP_MS
-                            _set_cut(False, True)
-                        else:
-                            ctrl_state = "CUT_SETTLE"
-                            ctrl_until_ms = now_ms + CUT_SETTLE_MS
-
-                elif ctrl_state == "CUT_UP":
-                    _set_feed(False)
-                    _set_pushrod("RETRACT")
-                    _set_cut(False, True)
-                    if _ticks_reached(now_ms, ctrl_until_ms):
-                        _set_cut(False, False)
-                        ctrl_state = "CUT_SETTLE"
-                        ctrl_until_ms = now_ms + CUT_SETTLE_MS
-
-                elif ctrl_state == "CUT_SETTLE":
-                    _set_feed(False)
-                    _set_pushrod("RETRACT")
-                    _set_cut(False, False)
-                    if _ticks_reached(now_ms, ctrl_until_ms):
-                        ctrl_last_cut_ms = now_ms
-                        ctrl_state = "FEEDING"
-
-                else:
-                    ctrl_state = "WAIT_FEED"
-
-                trigger_prev_active = trigger_active
+            # USB CDC output (AI detections + cut decision)
+            if USB_SEND_ENABLE and _ticks_diff(now_ms, _usb_last_ms) >= USB_SEND_MIN_INTERVAL_MS:
+                payload = {
+                    "timestamp": time.time(),
+                    "fps": _fps,
+                    "detections": _build_detection_list(dets),
+                    "canmv_status": _build_canmv_status(),
+                    "cut_request": bool(trigger_rise),
+                    "cut_config": _current_cut_config(),
+                }
+                _usb_write_line(json.dumps(payload) + "\n")
+                _usb_last_ms = now_ms
 
             det_app.draw_result(pl.osd_img, res_draw)     # Draw detection results
-            if TRIGGER_USE_CENTER_LINE:
+            if TRIGGER_USE_CENTER_LINE and OSD_SHOW_CENTER_GUIDE:
                 _draw_center_line_hint(pl.osd_img, display_size)
                 if OSD_DRAW_CUT_ZONE:
-                    _draw_cut_zone_hint(pl.osd_img, display_size, line_x if line_x is not None else (display_size[0] // 2), TRIGGER_LINE_TOLERANCE_PX)
-                if overlap_now or (ctrl_state not in ("FEEDING", "WAIT_FEED")):
+                    _draw_cut_zone_hint(
+                        pl.osd_img,
+                        display_size,
+                        line_x if line_x is not None else int(float(display_size[0]) * float(CUT_LINE_RATIO_X)),
+                        line_tol_px if line_tol_px is not None else max(1, int(float(display_size[0]) * float(CUT_TOLERANCE_RATIO_X))),
+                    )
+                if overlap_now:
                     try:
-                        x = display_size[0] // 2
+                        x = line_x if line_x is not None else int(float(display_size[0]) * float(CUT_LINE_RATIO_X))
                         pl.osd_img.draw_line(x, 0, x, display_size[1] - 1, color=OSD_CUTLINE_ACTIVE_COLOR, thickness=TRIGGER_LINE_THICKNESS + 1)
                     except Exception:
                         pass
@@ -822,14 +837,7 @@ try:
                     except Exception:
                         pass
 
-                age_since_cut = _ticks_diff(now_ms, ctrl_last_cut_ms)
                 uptime_ms = _ticks_diff(now_ms, _start_ms)
-                state_left_ms = None
-                try:
-                    if ctrl_state != "FEEDING":
-                        state_left_ms = max(0, int(ctrl_until_ms - now_ms))
-                except Exception:
-                    state_left_ms = None
                 mem_free = None
                 try:
                     if hasattr(gc, "mem_free"):
@@ -839,16 +847,10 @@ try:
 
                 _info_lines = [
                     "FPS: %.1f  Dets: %d  Up: %s" % (_fps, det_count, _fmt_ms(uptime_ms)),
-                    "Trigger: %s  Hits: %d" % ("ON" if trigger_active else "OFF", trigger_hits),
-                    "State: %s  T-: %s  SinceCut: %s" % (ctrl_state, _fmt_ms(state_left_ms), _fmt_ms(age_since_cut)),
-                    "Feed: %s  Pushrod: %s  Sensor: %s" % (
-                        "ON" if feed_enabled else "OFF",
-                        pushrod_state,
-                        "ON" if feed_present else "OFF",
-                    ),
-                    "CutD: %s  CutU: %s" % (
-                        "ON" if cut_down_enabled else "OFF",
-                        "ON" if cut_up_enabled else "OFF",
+                    "CutReq: %s  Hits: %d  Overlap: %s" % (
+                        "ON" if trigger_rise else "OFF",
+                        trigger_hits,
+                        "YES" if overlap_now else "NO",
                     ),
                     "Best: %s" % best_s,
                 ]
@@ -860,22 +862,19 @@ try:
                 x0, y0 = OSD_INFO_XY
                 for idx, line in enumerate(_info_lines):
                     color = OSD_INFO_COLOR
-                    if "State: CUT" in line or (ctrl_state != "FEEDING" and idx == 2):
+                    if "CutReq: ON" in line:
                         color = OSD_INFO_WARN_COLOR
                     _draw_text(pl.osd_img, x0, y0 + idx * OSD_INFO_LINE_H, line, color)
 
             pl.show_image()                               # Show result on display
             gc.collect()                                  # Run garbage collection
+            _loop_ms = _ticks_diff(_ticks_ms(), _loop_begin_ms)
+            _loop_ema_ms = _ema(_loop_ema_ms, _loop_ms)
+            _infer_ema_ms = _ema(_infer_ema_ms, _infer_ms)
 finally:
     try:
         if trigger_pin is not None:
             trigger_pin.value(TRIGGER_INACTIVE_LEVEL)
-    except Exception:
-        pass
-    try:
-        _set_feed(False)
-        _set_cut(False, False)
-        _set_pushrod("STOP")
     except Exception:
         pass
     try:

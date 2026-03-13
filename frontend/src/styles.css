@@ -92,6 +92,7 @@ video,
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 video {
@@ -126,6 +127,21 @@ video {
 
 .controls-single {
   margin-top: 14px;
+}
+
+.wide {
+  width: 100%;
+}
+
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mode-button {
+  width: 100%;
 }
 
 button {
@@ -194,6 +210,36 @@ button:disabled {
 .error-text {
   color: #922818;
   font-weight: 700;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 14px;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.slider-block {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.slider {
+  width: 100%;
 }
 
 @media (max-width: 1200px) {

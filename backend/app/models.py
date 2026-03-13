@@ -23,6 +23,8 @@ class AiFrame(BaseModel):
     fps: float | None = None
     detections: List[Detection] = Field(default_factory=list)
     canmv_status: CanMvSystemStatus | None = None
+    cut_request: bool = False
+    cut_config: "CutConfig | None" = None
 
 
 class MotorCommand(BaseModel):
@@ -30,6 +32,7 @@ class MotorCommand(BaseModel):
 
 
 class MotorStatus(BaseModel):
+    mode: str = "manual"
     feed_running: bool = False
     cutter_down: bool = False
     last_action: str = "init"
@@ -48,3 +51,19 @@ class SystemStatus(BaseModel):
     canmv_last_seen_seconds: float | None = None
     canmv_fps: float | None = None
     canmv_status: CanMvSystemStatus | None = None
+
+
+class CutConfig(BaseModel):
+    line_ratio_x: float = Field(default=0.5, ge=0.0, le=1.0)
+    tolerance_ratio_x: float = Field(default=0.015, ge=0.0, le=0.25)
+    show_guide: bool = False
+    min_hits: int = Field(default=3, ge=1, le=20)
+    hold_ms: int = Field(default=200, ge=0, le=5000)
+
+
+class CutConfigUpdate(BaseModel):
+    line_ratio_x: float | None = Field(default=None, ge=0.0, le=1.0)
+    tolerance_ratio_x: float | None = Field(default=None, ge=0.0, le=0.25)
+    show_guide: bool | None = None
+    min_hits: int | None = Field(default=None, ge=1, le=20)
+    hold_ms: int | None = Field(default=None, ge=0, le=5000)

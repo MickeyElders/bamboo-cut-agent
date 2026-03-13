@@ -6,7 +6,7 @@ import json
 import time
 from typing import Awaitable, Callable, Optional
 
-from .models import AiFrame
+from .models import AiFrame, CutConfig
 from .ws_manager import WebSocketHub
 
 try:
@@ -34,6 +34,9 @@ class CanMvBridge:
         self._on_frame = on_frame
         self._task: asyncio.Task | None = None
         self._running = False
+        self._serial = None
+        self._write_lock = asyncio.Lock()
+        self._pending_cut_config: CutConfig | None = None
 
     async def start(self) -> None:
         if not self._serial_port or serial is None:
@@ -48,18 +51,48 @@ class CanMvBridge:
             self._task.cancel()
             with contextlib.suppress(Exception):
                 await self._task
+        self._serial = None
+
+    async def set_cut_config(self, config: CutConfig) -> None:
+        self._pending_cut_config = config.model_copy(deep=True)
+        await self._write_message(
+            {
+                "type": "cut_config",
+                "payload": self._pending_cut_config.model_dump(),
+            }
+        )
 
     async def _loop(self) -> None:
         while self._running:
             try:
                 with serial.Serial(self._serial_port, self._baudrate, timeout=1) as ser:
+                    self._serial = ser
+                    if self._pending_cut_config is not None:
+                        await self._write_message(
+                            {
+                                "type": "cut_config",
+                                "payload": self._pending_cut_config.model_dump(),
+                            }
+                        )
                     while self._running:
                         line = ser.readline().decode(errors="ignore").strip()
                         if not line:
                             await asyncio.sleep(0)
                             continue
 
-                        data = json.loads(line)
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+
+                        if not isinstance(data, dict):
+                            continue
+                        if data.get("type") == "cut_config_ack":
+                            continue
+                        if "detections" not in data and data.get("type") != "ai_frame":
+                            continue
+                        if data.get("type") == "ai_frame" and isinstance(data.get("payload"), dict):
+                            data = data["payload"]
                         if "timestamp" not in data:
                             data["timestamp"] = time.time()
 
@@ -70,4 +103,20 @@ class CanMvBridge:
                                 await result
                         await self._hub.broadcast_to_ui(frame.model_dump_json())
             except Exception:
+                self._serial = None
                 await asyncio.sleep(2)
+            finally:
+                self._serial = None
+
+    async def _write_message(self, payload: dict) -> bool:
+        async with self._write_lock:
+            if self._serial is None:
+                return False
+
+            try:
+                self._serial.write((json.dumps(payload, ensure_ascii=True) + "\n").encode())
+                self._serial.flush()
+                return True
+            except Exception:
+                self._serial = None
+                return False

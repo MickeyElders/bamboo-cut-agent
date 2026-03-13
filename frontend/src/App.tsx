@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchMotorStatus, fetchSystemStatus, fetchVideoConfig, sendMotorCommand, uiWsUrl, videoWsUrl } from "./api";
-import type { AiFrame, MotorStatus, SystemStatus, VideoConfig } from "./types";
+import {
+  fetchCutConfig,
+  fetchMotorStatus,
+  fetchSystemStatus,
+  fetchVideoConfig,
+  saveCutConfig,
+  sendMotorCommand,
+  uiWsUrl,
+  videoWsUrl
+} from "./api";
+import type { AiFrame, CutConfig, MotorStatus, SystemStatus, VideoConfig } from "./types";
 
 const EMPTY_STATUS: MotorStatus = {
+  mode: "manual",
   feed_running: false,
   cutter_down: false,
   last_action: "init"
@@ -32,7 +42,20 @@ const EMPTY_SYSTEM: SystemStatus = {
   canmv_status: null
 };
 
-function drawDetections(canvas: HTMLCanvasElement, detections: AiFrame["detections"]) {
+const DEFAULT_CUT_CONFIG: CutConfig = {
+  line_ratio_x: 0.5,
+  tolerance_ratio_x: 0.015,
+  show_guide: false,
+  min_hits: 3,
+  hold_ms: 200
+};
+
+function drawVisionOverlay(
+  canvas: HTMLCanvasElement,
+  detections: AiFrame["detections"],
+  cutConfig: CutConfig,
+  cutRequest: boolean
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
@@ -40,6 +63,28 @@ function drawDetections(canvas: HTMLCanvasElement, detections: AiFrame["detectio
   ctx.lineWidth = 2;
   ctx.font = "14px sans-serif";
 
+  if (cutConfig.show_guide) {
+    const lineX = Math.round(canvas.width * cutConfig.line_ratio_x);
+    const tolPx = Math.max(1, Math.round(canvas.width * cutConfig.tolerance_ratio_x));
+
+    ctx.strokeStyle = cutRequest ? "#f04a32" : "#ffd34d";
+    ctx.lineWidth = cutRequest ? 3 : 2;
+    ctx.beginPath();
+    ctx.moveTo(lineX, 0);
+    ctx.lineTo(lineX, canvas.height);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 211, 77, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(lineX - tolPx, 0);
+    ctx.lineTo(lineX - tolPx, canvas.height);
+    ctx.moveTo(lineX + tolPx, 0);
+    ctx.lineTo(lineX + tolPx, canvas.height);
+    ctx.stroke();
+  }
+
+  ctx.lineWidth = 2;
   for (const det of detections) {
     ctx.strokeStyle = "#2de26d";
     ctx.fillStyle = "#2de26d";
@@ -66,21 +111,35 @@ function formatSeconds(value?: number | null) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
+function formatRatio(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const signalRef = useRef<WebSocket | null>(null);
+  const cutDirtyRef = useRef(false);
 
   const [motor, setMotor] = useState<MotorStatus>(EMPTY_STATUS);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
   const [videoConfig, setVideoConfig] = useState<VideoConfig>(EMPTY_VIDEO);
-  const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [] });
+  const [cutConfig, setCutConfig] = useState<CutConfig>(DEFAULT_CUT_CONFIG);
+  const [cutDirty, setCutDirty] = useState(false);
+  const [cutSaving, setCutSaving] = useState(false);
+  const [cutError, setCutError] = useState("");
+  const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [], cut_request: false });
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
-  const [videoError, setVideoError] = useState<string>("");
+  const [videoError, setVideoError] = useState("");
+  const manualMode = motor.mode === "manual";
 
   const connectionState = useMemo(() => (wsConnected ? "online" : "offline"), [wsConnected]);
+
+  useEffect(() => {
+    cutDirtyRef.current = cutDirty;
+  }, [cutDirty]);
 
   useEffect(() => {
     fetchMotorStatus().then(setMotor).catch(() => undefined);
@@ -93,6 +152,14 @@ export default function App() {
       })
       .catch(() => {
         setVideoError("Failed to fetch video config");
+      });
+    fetchCutConfig()
+      .then((config) => {
+        setCutConfig(config);
+        setCutDirty(false);
+      })
+      .catch(() => {
+        setCutError("Failed to fetch cut config");
       });
   }, []);
 
@@ -135,6 +202,9 @@ export default function App() {
         canmv_fps: data.fps ?? prev.canmv_fps,
         canmv_status: data.canmv_status ?? prev.canmv_status
       }));
+      if (!cutDirtyRef.current && data.cut_config) {
+        setCutConfig(data.cut_config);
+      }
     };
     ws.onopen = () => setWsConnected(true);
     ws.onclose = () => setWsConnected(false);
@@ -153,8 +223,8 @@ export default function App() {
 
     canvas.width = video.videoWidth || videoConfig.width || 1280;
     canvas.height = video.videoHeight || videoConfig.height || 720;
-    drawDetections(canvas, aiFrame.detections);
-  }, [aiFrame, videoConfig.width, videoConfig.height]);
+    drawVisionOverlay(canvas, aiFrame.detections, cutConfig, Boolean(aiFrame.cut_request));
+  }, [aiFrame, cutConfig, videoConfig.width, videoConfig.height]);
 
   useEffect(() => {
     return () => {
@@ -255,9 +325,30 @@ export default function App() {
     setVideoConnected(false);
   }
 
-  async function handleMotorCommand(cmd: "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop") {
+  async function handleMotorCommand(
+    cmd: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop"
+  ) {
     const status = await sendMotorCommand(cmd);
     setMotor(status);
+  }
+
+  async function handleSaveCutConfig() {
+    setCutSaving(true);
+    setCutError("");
+    try {
+      const saved = await saveCutConfig(cutConfig);
+      setCutConfig(saved);
+      setCutDirty(false);
+    } catch {
+      setCutError("Failed to save cut config");
+    } finally {
+      setCutSaving(false);
+    }
+  }
+
+  function updateCutConfig<K extends keyof CutConfig>(key: K, value: CutConfig[K]) {
+    setCutConfig((prev) => ({ ...prev, [key]: value }));
+    setCutDirty(true);
   }
 
   return (
@@ -274,6 +365,7 @@ export default function App() {
         <div className="vision-footer">
           <div className="spec-line">Source <strong>{videoConfig.device}</strong></div>
           <div className="spec-line">Mode <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
+          <div className="spec-line">Cut Request <strong>{aiFrame.cut_request ? "Triggered" : "Idle"}</strong></div>
           <div className="action-row">
             <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Reconnect Video</button>
             <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Video</button>
@@ -308,19 +400,87 @@ export default function App() {
 
         <section className="panel side-panel">
           <div className="header">
+            <h2>Cut Line</h2>
+            <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "pending" : "applied"}</span>
+          </div>
+          <label className="toggle-row">
+            <span>Show Guide</span>
+            <input
+              type="checkbox"
+              checked={cutConfig.show_guide}
+              onChange={(event) => updateCutConfig("show_guide", event.target.checked)}
+            />
+          </label>
+          <div className="slider-block">
+            <div className="slider-head">
+              <span>Line Position</span>
+              <strong>{formatRatio(cutConfig.line_ratio_x)}</strong>
+            </div>
+            <input
+              className="slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.001"
+              value={cutConfig.line_ratio_x}
+              onChange={(event) => updateCutConfig("line_ratio_x", Number(event.target.value))}
+            />
+          </div>
+          <div className="slider-block">
+            <div className="slider-head">
+              <span>Trigger Band</span>
+              <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
+            </div>
+            <input
+              className="slider"
+              type="range"
+              min="0.001"
+              max="0.05"
+              step="0.001"
+              value={cutConfig.tolerance_ratio_x}
+              onChange={(event) => updateCutConfig("tolerance_ratio_x", Number(event.target.value))}
+            />
+          </div>
+          <div className="stat"><span>Min Hits</span><strong>{cutConfig.min_hits}</strong></div>
+          <div className="stat"><span>Hold</span><strong>{cutConfig.hold_ms} ms</strong></div>
+          <button className="primary wide" onClick={() => void handleSaveCutConfig()} disabled={cutSaving}>
+            {cutSaving ? "Saving..." : "Apply To CanMV"}
+          </button>
+          {cutError ? <div className="error-text">{cutError}</div> : null}
+        </section>
+
+        <section className="panel side-panel">
+          <div className="header">
             <h2>Machine</h2>
             <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "streaming" : "idle"}</span>
           </div>
+          <div className="mode-row">
+            <button
+              className={manualMode ? "primary mode-button" : "mode-button"}
+              onClick={() => void handleMotorCommand("mode_manual")}
+              disabled={manualMode}
+            >
+              Manual
+            </button>
+            <button
+              className={!manualMode ? "primary mode-button" : "mode-button"}
+              onClick={() => void handleMotorCommand("mode_auto")}
+              disabled={!manualMode}
+            >
+              Auto
+            </button>
+          </div>
+          <div className="stat"><span>Mode</span><strong>{manualMode ? "Manual" : "Auto"}</strong></div>
           <div className="stat"><span>Feed Motor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
           <div className="stat"><span>Cutter</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
           <div className="stat"><span>Last Action</span><strong>{motor.last_action}</strong></div>
           <div className="stat"><span>Detections</span><strong>{aiFrame.detections.length}</strong></div>
           <div className="controls controls-single">
-            <button className="primary" onClick={() => handleMotorCommand("feed_start")}>Feed Start</button>
-            <button onClick={() => handleMotorCommand("feed_stop")}>Feed Stop</button>
-            <button className="primary" onClick={() => handleMotorCommand("cutter_down")}>Cutter Down</button>
-            <button onClick={() => handleMotorCommand("cutter_up")}>Cutter Up</button>
-            <button className="danger" onClick={() => handleMotorCommand("emergency_stop")}>Emergency Stop</button>
+            <button className="primary" onClick={() => void handleMotorCommand("feed_start")} disabled={!manualMode}>Feed Start</button>
+            <button onClick={() => void handleMotorCommand("feed_stop")} disabled={!manualMode}>Feed Stop</button>
+            <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>Cutter Down</button>
+            <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>Cutter Up</button>
+            <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>Emergency Stop</button>
           </div>
         </section>
       </aside>

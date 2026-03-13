@@ -9,7 +9,8 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .canmv_bridge import CanMvBridge
-from .models import AiFrame, MotorCommand, MotorStatus, SystemStatus
+from .cut_config import CutConfigStore
+from .models import AiFrame, CutConfig, CutConfigUpdate, MotorCommand, MotorStatus, SystemStatus
 from .motor_control import MotorController
 from .system_status import SystemStatusStore
 from .video_webrtc import VideoWebRtcManager
@@ -29,6 +30,7 @@ hub = WebSocketHub()
 motor = MotorController()
 video = VideoWebRtcManager()
 system_status = SystemStatusStore()
+cut_config_store = CutConfigStore(path=os.getenv("CUT_CONFIG_PATH"))
 canmv_bridge = CanMvBridge(
     hub=hub,
     serial_port=os.getenv("CANMV_SERIAL_PORT"),
@@ -40,6 +42,7 @@ canmv_bridge = CanMvBridge(
 @app.on_event("startup")
 async def startup() -> None:
     await canmv_bridge.start()
+    await canmv_bridge.set_cut_config(cut_config_store.get())
 
 
 @app.on_event("shutdown")
@@ -75,6 +78,18 @@ async def motor_status() -> MotorStatus:
 @app.get("/api/system/status", response_model=SystemStatus)
 async def get_system_status() -> SystemStatus:
     return system_status.snapshot()
+
+
+@app.get("/api/cut-config", response_model=CutConfig)
+async def get_cut_config() -> CutConfig:
+    return cut_config_store.get()
+
+
+@app.put("/api/cut-config", response_model=CutConfig)
+async def update_cut_config(req: CutConfigUpdate) -> CutConfig:
+    config = cut_config_store.update(req)
+    await canmv_bridge.set_cut_config(config)
+    return config
 
 
 @app.post("/api/motor/command", response_model=MotorStatus)

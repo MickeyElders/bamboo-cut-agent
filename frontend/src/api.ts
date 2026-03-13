@@ -1,8 +1,10 @@
-import type { MotorStatus, SystemStatus, VideoConfig } from "./types";
+import type { CutConfig, MotorStatus, SystemStatus, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
-export async function sendMotorCommand(command: "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop") {
+export async function sendMotorCommand(
+  command: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop"
+) {
   const res = await fetch(`${API_BASE}/api/motor/command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -36,6 +38,26 @@ export async function fetchSystemStatus() {
     throw new Error("Failed to fetch system status");
   }
   return (await res.json()) as SystemStatus;
+}
+
+export async function fetchCutConfig() {
+  const res = await fetch(`${API_BASE}/api/cut-config`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch cut config");
+  }
+  return (await res.json()) as CutConfig;
+}
+
+export async function saveCutConfig(config: Partial<CutConfig>) {
+  const res = await fetch(`${API_BASE}/api/cut-config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    throw new Error("Failed to save cut config");
+  }
+  return (await res.json()) as CutConfig;
 }
 
 export function uiWsUrl() {

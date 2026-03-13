@@ -12,9 +12,12 @@ export type AiFrame = {
   fps?: number;
   detections: Detection[];
   canmv_status?: CanMvSystemStatus;
+  cut_request?: boolean;
+  cut_config?: CutConfig | null;
 };
 
 export type MotorStatus = {
+  mode: "manual" | "auto";
   feed_running: boolean;
   cutter_down: boolean;
   last_action: string;
@@ -51,4 +54,12 @@ export type SystemStatus = {
   canmv_last_seen_seconds?: number | null;
   canmv_fps?: number | null;
   canmv_status?: CanMvSystemStatus | null;
+};
+
+export type CutConfig = {
+  line_ratio_x: number;
+  tolerance_ratio_x: number;
+  show_guide: boolean;
+  min_hits: number;
+  hold_ms: number;
 };
