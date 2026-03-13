@@ -9,8 +9,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .canmv_bridge import CanMvBridge
-from .models import AiFrame, MotorCommand, MotorStatus
+from .models import AiFrame, MotorCommand, MotorStatus, SystemStatus
 from .motor_control import MotorController
+from .system_status import SystemStatusStore
 from .video_webrtc import VideoWebRtcManager
 from .ws_manager import WebSocketHub
 
@@ -27,10 +28,12 @@ app.add_middleware(
 hub = WebSocketHub()
 motor = MotorController()
 video = VideoWebRtcManager()
+system_status = SystemStatusStore()
 canmv_bridge = CanMvBridge(
     hub=hub,
     serial_port=os.getenv("CANMV_SERIAL_PORT"),
     baudrate=int(os.getenv("CANMV_BAUDRATE", "115200")),
+    on_frame=system_status.update_canmv_frame,
 )
 
 
@@ -69,6 +72,11 @@ async def motor_status() -> MotorStatus:
     return await motor.status()
 
 
+@app.get("/api/system/status", response_model=SystemStatus)
+async def get_system_status() -> SystemStatus:
+    return system_status.snapshot()
+
+
 @app.post("/api/motor/command", response_model=MotorStatus)
 async def motor_command(req: MotorCommand) -> MotorStatus:
     try:
@@ -100,6 +108,7 @@ async def ws_canmv(ws: WebSocket) -> None:
                 payload["timestamp"] = time.time()
 
             frame = AiFrame.model_validate(payload)
+            system_status.update_canmv_frame(frame)
             await hub.broadcast_to_ui(frame.model_dump_json())
     except WebSocketDisconnect:
         return

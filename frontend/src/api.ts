@@ -1,4 +1,4 @@
-import type { MotorStatus, VideoConfig } from "./types";
+import type { MotorStatus, SystemStatus, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -28,6 +28,14 @@ export async function fetchVideoConfig() {
     throw new Error("Failed to fetch video config");
   }
   return (await res.json()) as VideoConfig;
+}
+
+export async function fetchSystemStatus() {
+  const res = await fetch(`${API_BASE}/api/system/status`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch system status");
+  }
+  return (await res.json()) as SystemStatus;
 }
 
 export function uiWsUrl() {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchMotorStatus, fetchVideoConfig, sendMotorCommand, uiWsUrl, videoWsUrl } from "./api";
-import type { AiFrame, Detection, MotorStatus, VideoConfig } from "./types";
+import { fetchMotorStatus, fetchSystemStatus, fetchVideoConfig, sendMotorCommand, uiWsUrl, videoWsUrl } from "./api";
+import type { AiFrame, MotorStatus, SystemStatus, VideoConfig } from "./types";
 
 const EMPTY_STATUS: MotorStatus = {
   feed_running: false,
@@ -19,7 +19,20 @@ const EMPTY_VIDEO: VideoConfig = {
   bitrate_kbps: 0
 };
 
-function drawDetections(canvas: HTMLCanvasElement, detections: Detection[]) {
+const EMPTY_SYSTEM: SystemStatus = {
+  raspberry_pi: {
+    hostname: "raspberrypi",
+    cpu_percent: null,
+    memory_percent: null,
+    uptime_seconds: null
+  },
+  canmv_connected: false,
+  canmv_last_seen_seconds: null,
+  canmv_fps: null,
+  canmv_status: null
+};
+
+function drawDetections(canvas: HTMLCanvasElement, detections: AiFrame["detections"]) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
@@ -36,6 +49,23 @@ function drawDetections(canvas: HTMLCanvasElement, detections: Detection[]) {
   }
 }
 
+function formatPercent(value?: number | null) {
+  return value == null ? "-" : `${value.toFixed(1)}%`;
+}
+
+function formatTemp(value?: number | null) {
+  return value == null ? "-" : `${value.toFixed(1)} C`;
+}
+
+function formatSeconds(value?: number | null) {
+  if (value == null) return "-";
+  const total = Math.max(0, Math.floor(value));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
 export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -43,9 +73,9 @@ export default function App() {
   const signalRef = useRef<WebSocket | null>(null);
 
   const [motor, setMotor] = useState<MotorStatus>(EMPTY_STATUS);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
   const [videoConfig, setVideoConfig] = useState<VideoConfig>(EMPTY_VIDEO);
   const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [] });
-  const [logLines, setLogLines] = useState<string[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
   const [videoError, setVideoError] = useState<string>("");
@@ -59,13 +89,38 @@ export default function App() {
         setVideoConfig(config);
         if (!config.enabled) {
           setVideoError(config.detail || "Video backend unavailable");
-          setLogLines((prev) => [`[ERR] ${config.detail || "Video backend unavailable"}`, ...prev].slice(0, 200));
         }
       })
-      .catch((err) => {
+      .catch(() => {
         setVideoError("Failed to fetch video config");
-        setLogLines((prev) => [`[ERR] video config failed: ${String(err)}`, ...prev].slice(0, 200));
       });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSystemStatus() {
+      try {
+        const next = await fetchSystemStatus();
+        if (!cancelled) {
+          setSystemStatus(next);
+        }
+      } catch {
+        if (!cancelled) {
+          setVideoError((prev) => prev || "Failed to fetch system status");
+        }
+      }
+    }
+
+    void loadSystemStatus();
+    const timer = window.setInterval(() => {
+      void loadSystemStatus();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -73,17 +128,17 @@ export default function App() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data) as AiFrame;
       setAiFrame(data);
-      setLogLines((prev) => [`[AI] ${new Date().toLocaleTimeString()} detections=${data.detections.length}`, ...prev].slice(0, 200));
+      setSystemStatus((prev) => ({
+        ...prev,
+        canmv_connected: true,
+        canmv_last_seen_seconds: 0,
+        canmv_fps: data.fps ?? prev.canmv_fps,
+        canmv_status: data.canmv_status ?? prev.canmv_status
+      }));
     };
-    ws.onopen = () => {
-      setWsConnected(true);
-      setLogLines((prev) => ["[SYS] UI websocket connected", ...prev].slice(0, 200));
-    };
-    ws.onclose = () => {
-      setWsConnected(false);
-      setLogLines((prev) => ["[SYS] UI websocket disconnected", ...prev].slice(0, 200));
-    };
-    ws.onerror = () => setLogLines((prev) => ["[ERR] UI websocket error", ...prev].slice(0, 200));
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
 
     return () => {
       setWsConnected(false);
@@ -127,9 +182,8 @@ export default function App() {
     peer.ontrack = (event) => {
       if (videoRef.current) {
         videoRef.current.srcObject = event.streams[0];
-        void videoRef.current.play().catch((err) => {
+        void videoRef.current.play().catch(() => {
           setVideoError("Video play failed");
-          setLogLines((prev) => [`[ERR] video play failed: ${String(err)}`, ...prev].slice(0, 200));
         });
         videoRef.current.onloadedmetadata = () => {
           const canvas = canvasRef.current;
@@ -140,66 +194,43 @@ export default function App() {
         };
       }
       setVideoConnected(true);
-      setLogLines((prev) => ["[VIDEO] Track received", ...prev].slice(0, 200));
     };
 
     peer.onconnectionstatechange = () => {
       const state = peer.connectionState;
-      setLogLines((prev) => [`[VIDEO] Peer state=${state}`, ...prev].slice(0, 200));
       if (state === "failed" || state === "disconnected" || state === "closed") {
         setVideoConnected(false);
       }
     };
 
-    peer.oniceconnectionstatechange = () => {
-      setLogLines((prev) => [`[VIDEO] ICE state=${peer.iceConnectionState}`, ...prev].slice(0, 200));
-    };
-
-    peer.onsignalingstatechange = () => {
-      setLogLines((prev) => [`[VIDEO] Signaling state=${peer.signalingState}`, ...prev].slice(0, 200));
-    };
-
     const ws = new WebSocket(videoWsUrl());
     signalRef.current = ws;
 
-    ws.onopen = () => {
-      setLogLines((prev) => ["[VIDEO] Signaling connected", ...prev].slice(0, 200));
-    };
-
     ws.onmessage = async (event) => {
-      const msg = JSON.parse(event.data) as { type: string; sdp?: string; candidate?: string; sdpMLineIndex?: number; detail?: string; state?: string };
+      const msg = JSON.parse(event.data) as { type: string; sdp?: string; candidate?: string; sdpMLineIndex?: number; detail?: string };
       try {
         if (msg.type === "offer" && msg.sdp) {
-          setLogLines((prev) => ["[VIDEO] Offer received", ...prev].slice(0, 200));
           await peer.setRemoteDescription({ type: "offer", sdp: msg.sdp });
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
-          setLogLines((prev) => ["[VIDEO] Answer sent", ...prev].slice(0, 200));
         } else if (msg.type === "ice" && msg.candidate) {
           await peer.addIceCandidate({ candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex ?? 0 });
-          setLogLines((prev) => ["[VIDEO] ICE candidate added", ...prev].slice(0, 200));
         } else if (msg.type === "error") {
           setVideoError(msg.detail ?? "Video backend error");
-          setLogLines((prev) => [`[ERR] ${msg.detail ?? "Video backend error"}`, ...prev].slice(0, 200));
-        } else if (msg.type === "state") {
-          setLogLines((prev) => [`[VIDEO] ${msg.state ?? "state"}`, ...prev].slice(0, 200));
         }
-      } catch (err) {
+      } catch {
         setVideoError("WebRTC negotiation failed");
-        setLogLines((prev) => [`[ERR] WebRTC failed: ${String(err)}`, ...prev].slice(0, 200));
       }
     };
 
     ws.onclose = () => {
       signalRef.current = null;
       setVideoConnected(false);
-      setLogLines((prev) => ["[VIDEO] Signaling disconnected", ...prev].slice(0, 200));
     };
 
     ws.onerror = () => {
       setVideoError("Video signaling failed");
-      setLogLines((prev) => ["[ERR] Video signaling failed", ...prev].slice(0, 200));
     };
 
     peer.onicecandidate = (event) => {
@@ -222,72 +253,77 @@ export default function App() {
       videoRef.current.srcObject = null;
     }
     setVideoConnected(false);
-    setLogLines((prev) => ["[VIDEO] Stream stopped", ...prev].slice(0, 200));
   }
 
   async function handleMotorCommand(cmd: "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop") {
     const status = await sendMotorCommand(cmd);
     setMotor(status);
-    setLogLines((prev) => [`[MOTOR] ${cmd}`, ...prev].slice(0, 200));
   }
 
   return (
     <main className="app">
-      <section className="panel">
+      <section className="panel vision-panel">
         <div className="header">
           <h2>Vision</h2>
           <span className={`badge ${connectionState === "online" ? "ok" : "warn"}`}>{connectionState}</span>
         </div>
-        <div className="video-wrap">
+        <div className="video-wrap hero-video">
           <video ref={videoRef} autoPlay playsInline muted />
           <canvas ref={canvasRef} className="overlay" />
         </div>
-        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-          <div>Source: <strong>{videoConfig.device}</strong></div>
-          <div>Mode: <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
-          {!videoConfig.enabled ? <div style={{ color: "#9d3020", fontWeight: 600 }}>Backend video disabled: {videoConfig.detail || "unknown error"}</div> : null}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Start Stream</button>
-            <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Stream</button>
+        <div className="vision-footer">
+          <div className="spec-line">Source <strong>{videoConfig.device}</strong></div>
+          <div className="spec-line">Mode <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
+          <div className="action-row">
+            <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Reconnect Video</button>
+            <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Video</button>
           </div>
-          {videoError ? <div style={{ color: "#9d3020", fontWeight: 600 }}>{videoError}</div> : null}
+          {videoError ? <div className="error-text">{videoError}</div> : null}
         </div>
       </section>
 
-      <section className="grid">
-        <div className="panel">
+      <aside className="sidebar">
+        <section className="panel side-panel">
           <div className="header">
-            <h2>Line Control</h2>
+            <h2>Raspberry Pi</h2>
+            <span className="badge ok">{systemStatus.raspberry_pi.hostname}</span>
+          </div>
+          <div className="stat"><span>CPU</span><strong>{formatPercent(systemStatus.raspberry_pi.cpu_percent)}</strong></div>
+          <div className="stat"><span>Memory</span><strong>{formatPercent(systemStatus.raspberry_pi.memory_percent)}</strong></div>
+          <div className="stat"><span>Uptime</span><strong>{formatSeconds(systemStatus.raspberry_pi.uptime_seconds)}</strong></div>
+        </section>
+
+        <section className="panel side-panel">
+          <div className="header">
+            <h2>CanMV</h2>
+            <span className={`badge ${systemStatus.canmv_connected ? "ok" : "warn"}`}>{systemStatus.canmv_connected ? "online" : "offline"}</span>
+          </div>
+          <div className="stat"><span>CPU</span><strong>{formatPercent(systemStatus.canmv_status?.cpu_percent)}</strong></div>
+          <div className="stat"><span>KPU</span><strong>{formatPercent(systemStatus.canmv_status?.kpu_percent)}</strong></div>
+          <div className="stat"><span>Memory</span><strong>{formatPercent(systemStatus.canmv_status?.memory_percent)}</strong></div>
+          <div className="stat"><span>Temp</span><strong>{formatTemp(systemStatus.canmv_status?.temperature_c)}</strong></div>
+          <div className="stat"><span>FPS</span><strong>{systemStatus.canmv_fps?.toFixed(1) ?? "-"}</strong></div>
+          <div className="stat"><span>Last Seen</span><strong>{formatSeconds(systemStatus.canmv_last_seen_seconds)}</strong></div>
+        </section>
+
+        <section className="panel side-panel">
+          <div className="header">
+            <h2>Machine</h2>
             <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "streaming" : "idle"}</span>
           </div>
-          <div className="controls">
+          <div className="stat"><span>Feed Motor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
+          <div className="stat"><span>Cutter</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
+          <div className="stat"><span>Last Action</span><strong>{motor.last_action}</strong></div>
+          <div className="stat"><span>Detections</span><strong>{aiFrame.detections.length}</strong></div>
+          <div className="controls controls-single">
             <button className="primary" onClick={() => handleMotorCommand("feed_start")}>Feed Start</button>
             <button onClick={() => handleMotorCommand("feed_stop")}>Feed Stop</button>
             <button className="primary" onClick={() => handleMotorCommand("cutter_down")}>Cutter Down</button>
             <button onClick={() => handleMotorCommand("cutter_up")}>Cutter Up</button>
             <button className="danger" onClick={() => handleMotorCommand("emergency_stop")}>Emergency Stop</button>
           </div>
-        </div>
-
-        <div className="panel">
-          <div className="header"><h2>Status</h2></div>
-          <div className="stat"><span>Feed Motor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
-          <div className="stat"><span>Cutter</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
-          <div className="stat"><span>Last Action</span><strong>{motor.last_action}</strong></div>
-          <div className="stat"><span>AI FPS</span><strong>{aiFrame.fps?.toFixed(1) ?? "-"}</strong></div>
-          <div className="stat"><span>Detections</span><strong>{aiFrame.detections.length}</strong></div>
-          <div className="stat"><span>Video</span><strong>{videoConnected ? "Connected" : "Disconnected"}</strong></div>
-        </div>
-
-        <div className="panel">
-          <div className="header"><h2>Event Log</h2></div>
-          <div className="log">
-            {logLines.map((line, idx) => (
-              <div key={idx}>{line}</div>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      </aside>
     </main>
   );
 }

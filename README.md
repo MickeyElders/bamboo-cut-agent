@@ -130,3 +130,4 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 - Motor I/O is currently mocked in `backend/app/motor_control.py`.
 - Replace with GPIO/relay driver logic on Raspberry Pi.
 - Frontend video is provided by backend WebRTC streaming.
+- `CanMV` CPU/KPU usage is shown when the CanMV payload includes `canmv_status`.

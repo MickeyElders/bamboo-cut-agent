@@ -11,6 +11,7 @@ export type AiFrame = {
   timestamp: number;
   fps?: number;
   detections: Detection[];
+  canmv_status?: CanMvSystemStatus;
 };
 
 export type MotorStatus = {
@@ -28,4 +29,26 @@ export type VideoConfig = {
   fps: number;
   encoder: string;
   bitrate_kbps: number;
+};
+
+export type CanMvSystemStatus = {
+  cpu_percent?: number | null;
+  kpu_percent?: number | null;
+  memory_percent?: number | null;
+  temperature_c?: number | null;
+};
+
+export type PiSystemStatus = {
+  hostname: string;
+  cpu_percent?: number | null;
+  memory_percent?: number | null;
+  uptime_seconds?: number | null;
+};
+
+export type SystemStatus = {
+  raspberry_pi: PiSystemStatus;
+  canmv_connected: boolean;
+  canmv_last_seen_seconds?: number | null;
+  canmv_fps?: number | null;
+  canmv_status?: CanMvSystemStatus | null;
 };
