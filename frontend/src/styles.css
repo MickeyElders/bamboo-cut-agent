@@ -82,6 +82,8 @@ body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .sidebar {
@@ -90,7 +92,10 @@ body {
   align-content: start;
   height: calc(100dvh - 32px);
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .side-panel {
@@ -452,11 +457,22 @@ button:disabled {
 }
 
 .vision-panel::-webkit-scrollbar {
-  width: 8px;
+  width: 0;
+  height: 0;
 }
 
 .vision-panel::-webkit-scrollbar-thumb {
   background: rgba(245, 166, 35, 0.3);
+  border-radius: 999px;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(245, 166, 35, 0.24);
   border-radius: 999px;
 }
 
