@@ -520,15 +520,15 @@ def _apply_cut_config(payload):
     except Exception:
         pass
 
-def _process_usb_commands():
-    global _usb_rx_buffer
-    chunk = _usb_read_available()
+def _process_transport_commands():
+    global _transport_rx_buffer
+    chunk = _transport_read_available()
     if not chunk:
         return
 
-    _usb_rx_buffer += chunk
-    while "\n" in _usb_rx_buffer:
-        line, _usb_rx_buffer = _usb_rx_buffer.split("\n", 1)
+    _transport_rx_buffer += chunk
+    while "\n" in _transport_rx_buffer:
+        line, _transport_rx_buffer = _transport_rx_buffer.split("\n", 1)
         line = line.strip()
         if not line:
             continue
@@ -716,12 +716,12 @@ def _build_detection_list(dets):
 
 # Main loop: capture, run inference, display results
 try:
-    _usb_last_ms = _ticks_ms()
+    _transport_last_ms = _ticks_ms()
     while True:
         with ScopedTiming("total", 1):
             _loop_begin_ms = _ticks_ms()
             _status_temp_c = _read_temperature_c()
-            _process_usb_commands()
+            _process_transport_commands()
 
             img = pl.get_frame()                          # Capture current frame
 
@@ -784,7 +784,7 @@ try:
             trigger_prev_active = trigger_active
 
             # USB CDC output (AI detections + cut decision)
-            if USB_SEND_ENABLE and _ticks_diff(now_ms, _usb_last_ms) >= USB_SEND_MIN_INTERVAL_MS:
+            if TRANSPORT_SEND_ENABLE and _ticks_diff(now_ms, _transport_last_ms) >= TRANSPORT_SEND_MIN_INTERVAL_MS:
                 payload = {
                     "timestamp": time.time(),
                     "fps": _fps,
@@ -793,8 +793,8 @@ try:
                     "cut_request": bool(trigger_rise),
                     "cut_config": _current_cut_config(),
                 }
-                _usb_write_line(json.dumps(payload) + "\n")
-                _usb_last_ms = now_ms
+                _transport_write_line(json.dumps(payload) + "\n")
+                _transport_last_ms = now_ms
 
             det_app.draw_result(pl.osd_img, res_draw)     # Draw detection results
             if TRIGGER_USE_CENTER_LINE and OSD_SHOW_CENTER_GUIDE:
