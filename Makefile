@@ -83,14 +83,14 @@ deploy:
 	fi
 
 install-service:
-	@if [ ! -f systemd/bamboo-backend.env ]; then cp systemd/bamboo-backend.env.example systemd/bamboo-backend.env; fi
+	@if [ ! -f systemd/bamboo.env ]; then cp systemd/bamboo.env.example systemd/bamboo.env; fi
 	sudo cp systemd/$(SERVICE_FILE) /etc/systemd/system/$(SERVICE_FILE)
 	sudo systemctl daemon-reload
 	sudo systemctl enable $(SERVICE_FILE)
 	sudo systemctl restart $(SERVICE_FILE)
 
 install-frontend-service:
-	@if [ ! -f systemd/bamboo-frontend.env ]; then cp systemd/bamboo-frontend.env.example systemd/bamboo-frontend.env; fi
+	@if [ ! -f systemd/bamboo.env ]; then cp systemd/bamboo.env.example systemd/bamboo.env; fi
 	sudo cp systemd/$(FRONTEND_SERVICE_FILE) /etc/systemd/system/$(FRONTEND_SERVICE_FILE)
 	sudo systemctl daemon-reload
 	sudo systemctl enable $(FRONTEND_SERVICE_FILE)

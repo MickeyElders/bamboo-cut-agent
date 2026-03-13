@@ -7,7 +7,10 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/bamboo-cut-agent
-EnvironmentFile=-/home/pi/bamboo-cut-agent/systemd/bamboo-backend.env
+Environment=API_HOST=0.0.0.0
+Environment=API_PORT=8000
+Environment=CANMV_BAUDRATE=115200
+EnvironmentFile=-/home/pi/bamboo-cut-agent/systemd/bamboo.env
 ExecStart=/home/pi/bamboo-cut-agent/backend/.venv/bin/python -m uvicorn backend.app.main:app --host ${API_HOST} --port ${API_PORT}
 Restart=always
 RestartSec=2

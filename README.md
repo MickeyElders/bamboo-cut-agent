@@ -69,17 +69,15 @@ export VIDEO_BITRATE_KBPS=2500
 The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/video`.
 
 ## Systemd Service
-The repository includes a backend `systemd` unit and env file template:
+The repository includes backend/frontend `systemd` units and one shared env file template:
 - `systemd/bamboo-backend.service`
-- `systemd/bamboo-backend.env.example`
 - `systemd/bamboo-frontend.service`
-- `systemd/bamboo-frontend.env.example`
+- `systemd/bamboo.env.example`
 
 Install and enable it on Raspberry Pi:
 ```bash
-cp systemd/bamboo-backend.env.example systemd/bamboo-backend.env
+cp systemd/bamboo.env.example systemd/bamboo.env
 make install-service
-cp systemd/bamboo-frontend.env.example systemd/bamboo-frontend.env
 make install-frontend-service
 ```
 
