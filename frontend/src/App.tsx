@@ -14,7 +14,11 @@ import type { AiFrame, CutConfig, MotorStatus, SystemStatus, VideoConfig } from 
 const EMPTY_STATUS: MotorStatus = {
   mode: "manual",
   feed_running: false,
+  clamp_engaged: false,
   cutter_down: false,
+  cut_request_active: false,
+  auto_state: "manual_ready",
+  cycle_count: 0,
   last_action: "init"
 };
 
@@ -115,6 +119,30 @@ function formatRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function deriveRunState(motor: MotorStatus, frame: AiFrame, videoConnected: boolean) {
+  if (!videoConnected) {
+    return { code: "video-offline", label: "Video Offline", detail: "Waiting for video stream and machine telemetry." };
+  }
+  if (motor.auto_state === "cutting" || motor.cutter_down) {
+    return { code: "cutting", label: "Cutting", detail: "Blade is in the down-cut position." };
+  }
+  if (motor.auto_state === "clamping" || motor.auto_state === "position_reached" || motor.cut_request_active || frame.cut_request) {
+    return { code: "position-ready", label: "At Cut Position", detail: "CanMV reports the bamboo segment has reached the cut line." };
+  }
+  if (motor.feed_running) {
+    return { code: "feeding", label: "Feeding", detail: "Conveyor is advancing bamboo toward the blade station." };
+  }
+  if (motor.mode === "auto") {
+    return { code: "auto-standby", label: "Auto Standby", detail: "Automatic cycle armed, waiting for the next bamboo segment." };
+  }
+  return { code: "manual-ready", label: "Manual Ready", detail: "Manual commissioning mode, machine awaiting operator commands." };
+}
+
+function deriveClampState(motor: MotorStatus) {
+  if (motor.clamp_engaged) return motor.cutter_down ? "Clamped" : "Engaged";
+  return "Released";
+}
+
 export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -134,6 +162,8 @@ export default function App() {
   const [videoConnected, setVideoConnected] = useState(false);
   const [videoError, setVideoError] = useState("");
   const manualMode = motor.mode === "manual";
+  const runState = useMemo(() => deriveRunState(motor, aiFrame, videoConnected), [motor, aiFrame, videoConnected]);
+  const clampState = useMemo(() => deriveClampState(motor), [motor]);
 
   const connectionState = useMemo(() => (wsConnected ? "online" : "offline"), [wsConnected]);
 
@@ -161,6 +191,31 @@ export default function App() {
       .catch(() => {
         setCutError("Failed to fetch cut config");
       });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMotorStatus() {
+      try {
+        const next = await fetchMotorStatus();
+        if (!cancelled) {
+          setMotor(next);
+        }
+      } catch {
+        // keep last known state
+      }
+    }
+
+    void loadMotorStatus();
+    const timer = window.setInterval(() => {
+      void loadMotorStatus();
+    }, 800);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -326,7 +381,7 @@ export default function App() {
   }
 
   async function handleMotorCommand(
-    cmd: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "cutter_down" | "cutter_up" | "emergency_stop"
+    cmd: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "clamp_engage" | "clamp_release" | "cutter_down" | "cutter_up" | "emergency_stop"
   ) {
     const status = await sendMotorCommand(cmd);
     setMotor(status);
@@ -363,9 +418,35 @@ export default function App() {
           <canvas ref={canvasRef} className="overlay" />
         </div>
         <div className="vision-footer">
+          <div className={`run-banner run-${runState.code}`}>
+            <div className="run-banner-title">{runState.label}</div>
+            <div className="run-banner-detail">{runState.detail}</div>
+          </div>
+          <div className="process-strip">
+            <div className={`process-step ${motor.feed_running ? "active" : ""}`}>
+              <span className="step-index">01</span>
+              <span className="step-name">Feed Conveyor</span>
+              <strong>{motor.feed_running ? "Running" : "Stopped"}</strong>
+            </div>
+            <div className={`process-step ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>
+              <span className="step-index">02</span>
+              <span className="step-name">Cut Position</span>
+              <strong>{motor.cut_request_active || aiFrame.cut_request ? "Reached" : "Tracking"}</strong>
+            </div>
+            <div className={`process-step ${motor.clamp_engaged ? "active" : ""}`}>
+              <span className="step-index">03</span>
+              <span className="step-name">Clamp Cylinder</span>
+              <strong>{clampState}</strong>
+            </div>
+            <div className={`process-step ${motor.cutter_down ? "active" : ""}`}>
+              <span className="step-index">04</span>
+              <span className="step-name">Blade Motor</span>
+              <strong>{motor.cutter_down ? "Down" : "Ready"}</strong>
+            </div>
+          </div>
           <div className="spec-line">Source <strong>{videoConfig.device}</strong></div>
           <div className="spec-line">Mode <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
-          <div className="spec-line">Cut Request <strong>{aiFrame.cut_request ? "Triggered" : "Idle"}</strong></div>
+          <div className="spec-line">Cut Request <strong>{motor.cut_request_active || aiFrame.cut_request ? "Triggered" : "Idle"}</strong></div>
           <div className="action-row">
             <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Reconnect Video</button>
             <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Video</button>
@@ -451,7 +532,7 @@ export default function App() {
 
         <section className="panel side-panel">
           <div className="header">
-            <h2>Machine</h2>
+            <h2>Cutting Cell</h2>
             <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "streaming" : "idle"}</span>
           </div>
           <div className="mode-row">
@@ -470,14 +551,36 @@ export default function App() {
               Auto
             </button>
           </div>
+          <div className="machine-schema">
+            <div className={`schema-node ${motor.feed_running ? "active" : ""}`}>
+              <span>Conveyor</span>
+              <strong>{motor.feed_running ? "Feeding" : "Stopped"}</strong>
+            </div>
+            <div className={`schema-link ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
+            <div className={`schema-node ${motor.clamp_engaged ? "active" : ""}`}>
+              <span>Clamp Cylinder</span>
+              <strong>{clampState}</strong>
+            </div>
+            <div className={`schema-link ${motor.cutter_down ? "active" : ""}`}>{">"}</div>
+            <div className={`schema-node ${motor.cutter_down ? "active" : ""}`}>
+              <span>Blade Motor</span>
+              <strong>{motor.cutter_down ? "Cutting" : "Ready"}</strong>
+            </div>
+          </div>
+          <div className="stat"><span>Runtime State</span><strong>{runState.label}</strong></div>
+          <div className="stat"><span>Auto Step</span><strong>{motor.auto_state}</strong></div>
           <div className="stat"><span>Mode</span><strong>{manualMode ? "Manual" : "Auto"}</strong></div>
-          <div className="stat"><span>Feed Motor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
-          <div className="stat"><span>Cutter</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
+          <div className="stat"><span>Feed Conveyor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
+          <div className="stat"><span>Clamp Cylinder</span><strong>{clampState}</strong></div>
+          <div className="stat"><span>Blade Motor</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
+          <div className="stat"><span>Cycle Count</span><strong>{motor.cycle_count}</strong></div>
           <div className="stat"><span>Last Action</span><strong>{motor.last_action}</strong></div>
           <div className="stat"><span>Detections</span><strong>{aiFrame.detections.length}</strong></div>
           <div className="controls controls-single">
             <button className="primary" onClick={() => void handleMotorCommand("feed_start")} disabled={!manualMode}>Feed Start</button>
             <button onClick={() => void handleMotorCommand("feed_stop")} disabled={!manualMode}>Feed Stop</button>
+            <button className="primary" onClick={() => void handleMotorCommand("clamp_engage")} disabled={!manualMode}>Clamp Engage</button>
+            <button onClick={() => void handleMotorCommand("clamp_release")} disabled={!manualMode}>Clamp Release</button>
             <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>Cutter Down</button>
             <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>Cutter Up</button>
             <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>Emergency Stop</button>

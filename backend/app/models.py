@@ -34,7 +34,11 @@ class MotorCommand(BaseModel):
 class MotorStatus(BaseModel):
     mode: str = "manual"
     feed_running: bool = False
+    clamp_engaged: bool = False
     cutter_down: bool = False
+    cut_request_active: bool = False
+    auto_state: str = "manual_ready"
+    cycle_count: int = 0
     last_action: str = "init"
 
 

@@ -69,9 +69,10 @@ export VIDEO_BITRATE_KBPS=2500
 The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/video`.
 
 ## Systemd Service
-The repository includes backend/frontend `systemd` units and one shared env file template:
+The repository includes backend/frontend/kiosk `systemd` units and one shared env file template:
 - `systemd/bamboo-backend.service`
 - `systemd/bamboo-frontend.service`
+- `systemd/bamboo-kiosk.service`
 - `systemd/bamboo.env.example`
 
 Install and enable it on Raspberry Pi:
@@ -79,7 +80,16 @@ Install and enable it on Raspberry Pi:
 cp systemd/bamboo.env.example systemd/bamboo.env
 make install-service
 make install-frontend-service
+make install-kiosk-service
 ```
+
+For a kiosk-only appliance setup:
+```bash
+sudo systemctl disable --now lightdm || true
+sudo systemctl set-default multi-user.target
+```
+
+The kiosk service starts Chromium in fullscreen on tty1 and opens `BROWSER_URL` from `systemd/bamboo.env`.
 
 Useful commands:
 ```bash
@@ -89,11 +99,64 @@ make service-logs
 make frontend-service-status
 make frontend-service-restart
 make frontend-service-logs
+make kiosk-service-status
+make kiosk-service-restart
+make kiosk-service-logs
 make deploy SERVICE=bamboo-backend.service FRONTEND_SERVICE=bamboo-frontend.service
 ```
 
 ## CanMV Communication
 CanMV can send AI results by either WebSocket (recommended) or serial.
+
+### Wiring: CanMV to Raspberry Pi
+Use two independent links:
+
+1. `HDMI` for video
+2. `UART over GPIO` for detections, cut requests, and cut-line config
+
+#### HDMI video path
+- `CanMV HDMI` -> `HDMI capture card input`
+- `Capture card USB` -> `Raspberry Pi USB`
+
+The backend reads the capture card through V4L2 and forwards video to the UI over WebRTC.
+
+#### UART GPIO path
+Recommended three-wire UART connection:
+
+- `CanMV Pin 8  TX1(IO3)` -> `Raspberry Pi Pin 10 RXD(GPIO15)`
+- `CanMV Pin 10 RX1(IO4)` -> `Raspberry Pi Pin 8  TXD(GPIO14)`
+- `CanMV Pin 9  GND` -> `Raspberry Pi Pin 6  GND`
+
+Rules:
+- `TX -> RX`
+- `RX -> TX`
+- `GND -> GND`
+- Do not connect `5V`
+- Do not connect `3.3V` power rails between the boards
+
+The shared runtime config uses:
+
+```bash
+CANMV_SERIAL_PORT=/dev/serial0
+CANMV_BAUDRATE=115200
+```
+
+Enable Raspberry Pi hardware serial:
+
+```bash
+sudo raspi-config
+```
+
+Then set:
+- `Interface Options` -> `Serial Port`
+- `Login shell over serial`: `No`
+- `Serial port hardware enabled`: `Yes`
+
+Reboot and verify:
+
+```bash
+ls -l /dev/serial0
+```
 
 ### WebSocket ingest
 - URL: `ws://<pi-ip>:8000/ws/canmv`
@@ -111,12 +174,10 @@ CanMV can send AI results by either WebSocket (recommended) or serial.
 UI subscribes to:
 - `ws://<pi-ip>:8000/ws/ui`
 
-### Serial ingest (optional)
-- Set env in `backend/.env.example` format:
-  - `CANMV_SERIAL_PORT=/dev/ttyUSB0`
-  - `CANMV_BAUDRATE=115200`
-- Then start backend with these env vars.
+### Serial ingest
+- Serial transport is used for `CanMV -> Raspberry Pi` control/status when HDMI carries video.
 - Serial format: newline-delimited JSON, same schema as websocket payload.
+- The default runtime port is `/dev/serial0`.
 
 ### Local simulation (without CanMV board)
 ```bash

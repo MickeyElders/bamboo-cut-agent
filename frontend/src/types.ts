@@ -19,7 +19,11 @@ export type AiFrame = {
 export type MotorStatus = {
   mode: "manual" | "auto";
   feed_running: boolean;
+  clamp_engaged: boolean;
   cutter_down: boolean;
+  cut_request_active: boolean;
+  auto_state: string;
+  cycle_count: number;
   last_action: string;
 };
 

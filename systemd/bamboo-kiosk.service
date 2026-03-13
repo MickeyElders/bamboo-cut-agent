@@ -1,0 +1,26 @@
+[Unit]
+Description=Bamboo Cut Agent Kiosk Browser
+After=network-online.target bamboo-backend.service bamboo-frontend.service
+Wants=network-online.target
+Requires=bamboo-frontend.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=BROWSER_URL=http://127.0.0.1:5173
+Environment=BROWSER_BIN=/usr/bin/chromium-browser
+EnvironmentFile=-/home/pi/bamboo-cut-agent/systemd/bamboo.env
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+ExecStart=/usr/bin/xinit /usr/bin/bash -lc '${BROWSER_BIN} --kiosk --app=${BROWSER_URL} --start-fullscreen --noerrdialogs --disable-infobars --disable-session-crashed-bubble --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --overscroll-history-navigation=0 --disable-pinch --incognito' -- :0 -keeptty vt1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

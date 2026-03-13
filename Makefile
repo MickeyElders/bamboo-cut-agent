@@ -1,4 +1,4 @@
-.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service install-frontend-service service-status service-restart service-logs frontend-service-status frontend-service-restart frontend-service-logs
+.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service install-frontend-service install-kiosk-service service-status service-restart service-logs frontend-service-status frontend-service-restart frontend-service-logs kiosk-service-status kiosk-service-restart kiosk-service-logs
 
 SHELL := /bin/bash
 
@@ -14,6 +14,7 @@ SERVICE ?=
 SERVICE_FILE ?= bamboo-backend.service
 FRONTEND_SERVICE ?=
 FRONTEND_SERVICE_FILE ?= bamboo-frontend.service
+KIOSK_SERVICE_FILE ?= bamboo-kiosk.service
 
 help:
 	@echo "Targets:"
@@ -29,12 +30,16 @@ help:
 	@echo "  deploy           Pull updates, update deps, rebuild frontend"
 	@echo "  install-service  Install systemd backend service"
 	@echo "  install-frontend-service Install systemd frontend service"
+	@echo "  install-kiosk-service Install systemd kiosk browser service"
 	@echo "  service-status   Show backend service status"
 	@echo "  service-restart  Restart backend service"
 	@echo "  service-logs     Tail backend service logs"
 	@echo "  frontend-service-status  Show frontend service status"
 	@echo "  frontend-service-restart Restart frontend service"
 	@echo "  frontend-service-logs    Tail frontend service logs"
+	@echo "  kiosk-service-status     Show kiosk browser service status"
+	@echo "  kiosk-service-restart    Restart kiosk browser service"
+	@echo "  kiosk-service-logs       Tail kiosk browser service logs"
 
 backend-venv:
 	$(PY) -m venv --system-site-packages $(VENV)
@@ -96,6 +101,13 @@ install-frontend-service:
 	sudo systemctl enable $(FRONTEND_SERVICE_FILE)
 	sudo systemctl restart $(FRONTEND_SERVICE_FILE)
 
+install-kiosk-service:
+	@if [ ! -f systemd/bamboo.env ]; then cp systemd/bamboo.env.example systemd/bamboo.env; fi
+	sudo cp systemd/$(KIOSK_SERVICE_FILE) /etc/systemd/system/$(KIOSK_SERVICE_FILE)
+	sudo systemctl daemon-reload
+	sudo systemctl enable $(KIOSK_SERVICE_FILE)
+	sudo systemctl restart $(KIOSK_SERVICE_FILE)
+
 service-status:
 	sudo systemctl status $(SERVICE_FILE) --no-pager
 
@@ -115,3 +127,13 @@ frontend-service-restart:
 
 frontend-service-logs:
 	sudo journalctl -u $(FRONTEND_SERVICE_FILE) -f
+
+kiosk-service-status:
+	sudo systemctl status $(KIOSK_SERVICE_FILE) --no-pager
+
+kiosk-service-restart:
+	sudo systemctl reset-failed $(KIOSK_SERVICE_FILE) || true
+	sudo systemctl restart $(KIOSK_SERVICE_FILE)
+
+kiosk-service-logs:
+	sudo journalctl -u $(KIOSK_SERVICE_FILE) -f

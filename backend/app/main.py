@@ -31,11 +31,18 @@ motor = MotorController()
 video = VideoWebRtcManager()
 system_status = SystemStatusStore()
 cut_config_store = CutConfigStore(path=os.getenv("CUT_CONFIG_PATH"))
+
+
+async def handle_ai_frame(frame: AiFrame) -> None:
+    system_status.update_canmv_frame(frame)
+    await motor.process_ai_frame(frame)
+
+
 canmv_bridge = CanMvBridge(
     hub=hub,
     serial_port=os.getenv("CANMV_SERIAL_PORT"),
     baudrate=int(os.getenv("CANMV_BAUDRATE", "115200")),
-    on_frame=system_status.update_canmv_frame,
+    on_frame=handle_ai_frame,
 )
 
 
@@ -123,7 +130,7 @@ async def ws_canmv(ws: WebSocket) -> None:
                 payload["timestamp"] = time.time()
 
             frame = AiFrame.model_validate(payload)
-            system_status.update_canmv_frame(frame)
+            await handle_ai_frame(frame)
             await hub.broadcast_to_ui(frame.model_dump_json())
     except WebSocketDisconnect:
         return
