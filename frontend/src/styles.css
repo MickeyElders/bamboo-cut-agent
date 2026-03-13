@@ -25,7 +25,7 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
@@ -38,15 +38,17 @@ body {
     radial-gradient(circle at top, rgba(245, 166, 35, 0.08), transparent 30%),
     linear-gradient(180deg, var(--bg-2) 0%, var(--bg-1) 35%, var(--bg-0) 100%);
   background-size: 28px 28px, 28px 28px, auto, auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .app {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 7fr 3fr;
   gap: 16px;
   padding: 16px;
+  overflow: hidden;
+  align-items: stretch;
 }
 
 .panel {
@@ -72,19 +74,28 @@ body {
 
 .vision-panel {
   padding: 14px;
-  display: grid;
-  grid-template-rows: auto auto auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   align-content: start;
+  height: calc(100dvh - 32px);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar {
   display: grid;
   gap: 14px;
   align-content: start;
+  height: calc(100dvh - 32px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .side-panel {
   padding: 12px 14px 14px;
+  min-height: 0;
 }
 
 .header {
@@ -92,7 +103,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   min-height: 24px;
 }
 
@@ -107,7 +118,9 @@ body {
 
 .video-wrap {
   position: relative;
-  width: 100%;
+  width: min(100%, 92%);
+  flex: 0 0 auto;
+  align-self: center;
   overflow: hidden;
   border-radius: 4px;
   background:
@@ -118,8 +131,8 @@ body {
 }
 
 .hero-video {
-  min-height: 420px;
-  aspect-ratio: 16 / 10;
+  min-height: min(38vh, 400px);
+  aspect-ratio: 16 / 9;
 }
 
 video,
@@ -141,14 +154,14 @@ video {
 
 .vision-footer {
   display: grid;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 6px;
+  min-height: 0;
 }
 
 .run-banner {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 3px;
+  padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-left: 4px solid var(--warn);
   background:
@@ -157,7 +170,7 @@ video {
 }
 
 .run-banner-title {
-  font-size: 1rem;
+  font-size: 0.84rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -165,7 +178,7 @@ video {
 
 .run-banner-detail {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.76rem;
 }
 
 .run-feeding {
@@ -180,13 +193,13 @@ video {
 .process-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 .process-step {
   display: grid;
-  gap: 5px;
-  padding: 12px;
+  gap: 2px;
+  padding: 7px 8px;
   background: rgba(8, 11, 13, 0.34);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-bottom: 2px solid rgba(255, 255, 255, 0.08);
@@ -201,7 +214,7 @@ video {
 .step-index {
   color: var(--accent);
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.75rem;
+  font-size: 0.62rem;
   font-weight: 700;
 }
 
@@ -209,24 +222,24 @@ video {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-size: 0.58rem;
 }
 
 .process-step strong {
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.92rem;
+  font-size: 0.74rem;
 }
 
 .spec-line {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 6px 9px;
   background: rgba(7, 10, 12, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-left: 3px solid rgba(245, 166, 35, 0.65);
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.76rem;
 }
 
 .spec-line strong {
@@ -260,15 +273,15 @@ video {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr) 26px minmax(0, 1fr);
   gap: 8px;
-  margin: 8px 0 12px;
+  margin: 6px 0 10px;
   align-items: center;
 }
 
 .schema-node {
   display: grid;
   gap: 6px;
-  min-height: 82px;
-  padding: 10px;
+  min-height: 72px;
+  padding: 8px;
   background: rgba(8, 11, 13, 0.34);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -282,13 +295,13 @@ video {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
 }
 
 .schema-node strong {
   color: var(--text);
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
 }
 
 .schema-link {
@@ -303,11 +316,11 @@ video {
 }
 
 button {
-  min-height: 44px;
+  min-height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
-  padding: 11px 14px;
-  font-size: 0.92rem;
+  padding: 8px 10px;
+  font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -348,7 +361,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 0;
+  padding: 7px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -360,20 +373,20 @@ button:disabled {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.77rem;
+  font-size: 0.64rem;
 }
 
 .stat strong {
   color: var(--text);
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
 }
 
 .badge {
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid currentColor;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -399,11 +412,11 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 8px 0 14px;
+  padding: 4px 0 8px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.77rem;
+  font-size: 0.64rem;
 }
 
 .toggle-row input {
@@ -414,8 +427,8 @@ button:disabled {
 
 .slider-block {
   display: grid;
-  gap: 8px;
-  padding: 8px 0 12px;
+  gap: 6px;
+  padding: 4px 0 8px;
 }
 
 .slider-head {
@@ -425,7 +438,7 @@ button:disabled {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.77rem;
+  font-size: 0.64rem;
 }
 
 .slider-head strong {
@@ -438,13 +451,34 @@ button:disabled {
   accent-color: var(--accent);
 }
 
+.vision-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.vision-panel::-webkit-scrollbar-thumb {
+  background: rgba(245, 166, 35, 0.3);
+  border-radius: 999px;
+}
+
 @media (max-width: 1200px) {
+  body {
+    overflow: auto;
+  }
+
   .app {
+    height: auto;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .vision-panel {
-    min-height: auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .sidebar {
+    height: auto;
+    overflow: visible;
   }
 
   .hero-video {
