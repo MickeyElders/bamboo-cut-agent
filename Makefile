@@ -54,7 +54,7 @@ frontend-install:
 frontend-update:
 	cd frontend && npm update
 
-frontend-build:
+frontend-build: frontend-install
 	cd frontend && npm run build
 
 frontend-run:
@@ -100,6 +100,7 @@ service-status:
 	sudo systemctl status $(SERVICE_FILE) --no-pager
 
 service-restart:
+	sudo systemctl reset-failed $(SERVICE_FILE) || true
 	sudo systemctl restart $(SERVICE_FILE)
 
 service-logs:
@@ -109,6 +110,7 @@ frontend-service-status:
 	sudo systemctl status $(FRONTEND_SERVICE_FILE) --no-pager
 
 frontend-service-restart:
+	sudo systemctl reset-failed $(FRONTEND_SERVICE_FILE) || true
 	sudo systemctl restart $(FRONTEND_SERVICE_FILE)
 
 frontend-service-logs:
