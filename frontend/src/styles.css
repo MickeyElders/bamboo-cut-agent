@@ -87,9 +87,9 @@ body {
 }
 
 .sidebar {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  align-content: start;
   height: calc(100dvh - 32px);
   min-height: 0;
   overflow-y: auto;
