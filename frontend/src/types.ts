@@ -22,6 +22,12 @@ export type MotorStatus = {
   clamp_engaged: boolean;
   cutter_down: boolean;
   light_on: boolean;
+  light_available: boolean;
+  light_driver: string;
+  light_error?: string | null;
+  light_pin?: number | null;
+  light_led_count: number;
+  light_active_leds: number;
   cut_request_active: boolean;
   auto_state: string;
   cycle_count: number;

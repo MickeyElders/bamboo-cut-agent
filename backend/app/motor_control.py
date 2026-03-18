@@ -25,6 +25,8 @@ class MotorController:
         self._status.light_driver = self._light.driver_name
         self._status.light_error = self._light.error
         self._status.light_pin = self._light.pin
+        self._status.light_led_count = self._light.led_count
+        self._status.light_active_leds = 0
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
         self._cut_hold_ms = int(os.getenv("CUT_HOLD_MS", "150"))
@@ -36,7 +38,7 @@ class MotorController:
         async with self._lock:
             return self._status.model_copy(deep=True)
 
-    async def command(self, cmd: str) -> MotorStatus:
+    async def command(self, cmd: str, value: int | None = None) -> MotorStatus:
         async with self._lock:
             if cmd == "mode_manual":
                 await self._cancel_auto_task_locked()
@@ -74,8 +76,16 @@ class MotorController:
                 self._status.cutter_down = False
             elif cmd == "light_on":
                 self._status.light_on = self._light.set_on(True)
+                self._status.light_active_leds = self._light.led_count
             elif cmd == "light_off":
                 self._status.light_on = self._light.set_on(False)
+                self._status.light_active_leds = 0
+            elif cmd == "light_set_count":
+                self._ensure_manual(cmd)
+                if value is None:
+                    raise ValueError("Command requires value: light_set_count")
+                self._status.light_active_leds = self._light.write_count(value)
+                self._status.light_on = self._status.light_active_leds > 0
             elif cmd == "emergency_stop":
                 await self._cancel_auto_task_locked()
                 self._status.feed_running = False
@@ -87,6 +97,11 @@ class MotorController:
                 raise ValueError(f"Unsupported motor command: {cmd}")
 
             self._status.last_action = cmd
+            self._status.light_available = self._light.available
+            self._status.light_driver = self._light.driver_name
+            self._status.light_error = self._light.error
+            self._status.light_pin = self._light.pin
+            self._status.light_led_count = self._light.led_count
             return self._status.model_copy(deep=True)
 
     async def process_ai_frame(self, frame: AiFrame) -> None:
@@ -186,10 +201,12 @@ class MotorController:
             self._status.cutter_down = False
             self._status.cut_request_active = False
             self._status.light_on = self._light.reset()
+            self._status.light_active_leds = 0
             self._status.light_available = self._light.available
             self._status.light_driver = self._light.driver_name
             self._status.light_error = self._light.error
             self._status.light_pin = self._light.pin
+            self._status.light_led_count = self._light.led_count
             self._light.close()
 
     def _ensure_manual(self, cmd: str) -> None:

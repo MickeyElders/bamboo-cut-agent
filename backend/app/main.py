@@ -103,7 +103,7 @@ async def update_cut_config(req: CutConfigUpdate) -> CutConfig:
 @app.post("/api/motor/command", response_model=MotorStatus)
 async def motor_command(req: MotorCommand) -> MotorStatus:
     try:
-        return await motor.command(req.command)
+        return await motor.command(req.command, req.value)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

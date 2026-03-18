@@ -17,6 +17,12 @@ const EMPTY_STATUS: MotorStatus = {
   clamp_engaged: false,
   cutter_down: false,
   light_on: false,
+  light_available: false,
+  light_driver: "noop",
+  light_error: null,
+  light_pin: null,
+  light_led_count: 16,
+  light_active_leds: 0,
   cut_request_active: false,
   auto_state: "manual_ready",
   cycle_count: 0,
@@ -159,6 +165,8 @@ export default function App() {
   const [cutSaving, setCutSaving] = useState(false);
   const [cutError, setCutError] = useState("");
   const [motorError, setMotorError] = useState("");
+  const [lightPendingCount, setLightPendingCount] = useState(0);
+  const [lightDirty, setLightDirty] = useState(false);
   const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [], cut_request: false });
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
@@ -172,6 +180,12 @@ export default function App() {
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
   }, [cutDirty]);
+
+  useEffect(() => {
+    if (!lightDirty) {
+      setLightPendingCount(motor.light_active_leds);
+    }
+  }, [motor.light_active_leds, lightDirty]);
 
   useEffect(() => {
     fetchMotorStatus().then(setMotor).catch(() => undefined);
@@ -394,11 +408,14 @@ export default function App() {
       | "cutter_up"
       | "light_on"
       | "light_off"
+      | "light_set_count"
       | "emergency_stop"
+  ,
+    value?: number
   ) {
     setMotorError("");
     try {
-      const status = await sendMotorCommand(cmd);
+      const status = await sendMotorCommand(cmd, value);
       setMotor(status);
     } catch (error) {
       setMotorError(error instanceof Error ? error.message : "控制命令执行失败");
@@ -422,6 +439,11 @@ export default function App() {
   function updateCutConfig<K extends keyof CutConfig>(key: K, value: CutConfig[K]) {
     setCutConfig((prev) => ({ ...prev, [key]: value }));
     setCutDirty(true);
+  }
+
+  async function handleApplyLightCount() {
+    await handleMotorCommand("light_set_count", lightPendingCount);
+    setLightDirty(false);
   }
 
   return (
@@ -592,9 +614,31 @@ export default function App() {
           <div className="stat"><span>压紧机构</span><strong>{clampState}</strong></div>
           <div className="stat"><span>切刀机构</span><strong>{motor.cutter_down ? "下压" : "抬起"}</strong></div>
           <div className="stat"><span>工作灯</span><strong>{motor.light_on ? "开启" : "关闭"}</strong></div>
+          <div className="stat"><span>灯带驱动</span><strong>{motor.light_driver}</strong></div>
+          <div className="stat"><span>数据引脚</span><strong>{motor.light_pin ?? "-"}</strong></div>
+          <div className="stat"><span>点亮数量</span><strong>{motor.light_active_leds} / {motor.light_led_count}</strong></div>
           <div className="stat"><span>循环次数</span><strong>{motor.cycle_count}</strong></div>
           <div className="stat"><span>最后动作</span><strong>{motor.last_action}</strong></div>
           <div className="stat"><span>识别目标数</span><strong>{aiFrame.detections.length}</strong></div>
+          <div className="slider-block">
+            <div className="slider-head">
+              <span>灯带点亮数量</span>
+              <strong>{lightPendingCount} / {motor.light_led_count}</strong>
+            </div>
+            <input
+              className="slider"
+              type="range"
+              min="0"
+              max={String(motor.light_led_count)}
+              step="1"
+              value={lightPendingCount}
+              disabled={!manualMode || !motor.light_available}
+              onChange={(event) => {
+                setLightPendingCount(Number(event.target.value));
+                setLightDirty(true);
+              }}
+            />
+          </div>
           <div className="controls controls-single">
             <button className="primary" onClick={() => void handleMotorCommand("feed_start")} disabled={!manualMode}>启动送料</button>
             <button onClick={() => void handleMotorCommand("feed_stop")} disabled={!manualMode}>停止送料</button>
@@ -602,10 +646,11 @@ export default function App() {
             <button onClick={() => void handleMotorCommand("clamp_release")} disabled={!manualMode}>释放夹持</button>
             <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>切刀下压</button>
             <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>切刀抬起</button>
-            <button className="primary" onClick={() => void handleMotorCommand("light_on")} disabled={!manualMode || motor.light_on}>开灯</button>
+            <button className="primary" onClick={() => void handleApplyLightCount()} disabled={!manualMode || !motor.light_available || !lightDirty}>应用灯带设置</button>
             <button onClick={() => void handleMotorCommand("light_off")} disabled={!manualMode || !motor.light_on}>关灯</button>
             <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>急停</button>
           </div>
+          {motor.light_error ? <div className="error-text">{motor.light_error}</div> : null}
           {motorError ? <div className="error-text">{motorError}</div> : null}
         </section>
       </aside>

@@ -7,11 +7,16 @@ from typing import Protocol
 class _OutputDriver(Protocol):
     def write(self, value: bool) -> None: ...
 
+    def write_count(self, active_leds: int) -> None: ...
+
     def close(self) -> None: ...
 
 
 class _NoopDriver:
     def write(self, value: bool) -> None:
+        return
+
+    def write_count(self, active_leds: int) -> None:
         return
 
     def close(self) -> None:
@@ -32,9 +37,14 @@ class _Ws2812Driver:
         self.write(False)
 
     def write(self, value: bool) -> None:
-        level = self._brightness if value else 0
-        color = self._Color(level, level, level)
-        self._strip.set_all_pixels(color)
+        self.write_count(self._led_count if value else 0)
+
+    def write_count(self, active_leds: int) -> None:
+        count = max(0, min(active_leds, self._led_count))
+        on_color = self._Color(self._brightness, self._brightness, self._brightness)
+        off_color = self._Color(0, 0, 0)
+        for index in range(self._led_count):
+            self._strip.set_pixel(index, on_color if index < count else off_color)
         self._strip.show()
 
     def close(self) -> None:
@@ -57,12 +67,18 @@ class LightController:
         return self._is_on
 
     def reset(self) -> bool:
-        return self.set_on(False)
+        self.write_count(0)
+        return self._is_on
 
     def set_on(self, enabled: bool) -> bool:
-        self._driver.write(enabled)
-        self._is_on = enabled
+        self.write_count(self.led_count if enabled else 0)
         return self._is_on
+
+    def write_count(self, active_leds: int) -> int:
+        count = max(0, min(active_leds, self.led_count))
+        self._driver.write_count(count)
+        self._is_on = count > 0
+        return count
 
     def close(self) -> None:
         self._driver.close()

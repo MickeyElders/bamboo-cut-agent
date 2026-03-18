@@ -14,12 +14,15 @@ export async function sendMotorCommand(
     | "cutter_up"
     | "light_on"
     | "light_off"
+    | "light_set_count"
     | "emergency_stop"
+,
+  value?: number
 ) {
   const res = await fetch(`${API_BASE}/api/motor/command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command })
+    body: JSON.stringify({ command, value })
   });
   if (!res.ok) {
     let detail = "";

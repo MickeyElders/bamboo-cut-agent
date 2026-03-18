@@ -29,6 +29,7 @@ class AiFrame(BaseModel):
 
 class MotorCommand(BaseModel):
     command: str
+    value: int | None = None
 
 
 class MotorStatus(BaseModel):
@@ -41,6 +42,8 @@ class MotorStatus(BaseModel):
     light_driver: str = "noop"
     light_error: str | None = None
     light_pin: int | None = None
+    light_led_count: int = 16
+    light_active_leds: int = 0
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0
