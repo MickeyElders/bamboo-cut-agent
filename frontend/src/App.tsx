@@ -391,7 +391,6 @@ export default function App() {
             <div className="run-banner-detail">{runState.detail}</div>
           </div>
           <div className="process-strip">
-            <div className={`process-step ${motor.feed_running ? "active" : ""}`}>
             <div className={`process-step ${aiFrame.detections.length > 0 ? "active" : ""}`}>
               <span className="step-index">01</span>
               <span className="step-name">目标检测</span>
