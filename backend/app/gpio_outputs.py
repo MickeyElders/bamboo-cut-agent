@@ -20,26 +20,21 @@ class _NoopDriver:
 
 class _Ws2812Driver:
     def __init__(self, pin: int, led_count: int, brightness: int) -> None:
-        from rpi_ws281x import Color, PixelStrip  # type: ignore[import-not-found]
+        if pin != 10:
+            raise ValueError("Raspberry Pi 5 SPI WS2812 requires GPIO10 / MOSI / pin 19")
+
+        from rpi5_ws2812.ws2812 import Color, WS2812SpiDriver  # type: ignore[import-not-found]
 
         self._Color = Color
         self._led_count = led_count
-        self._strip = PixelStrip(
-            num=led_count,
-            pin=pin,
-            freq_hz=800000,
-            dma=10,
-            invert=False,
-            brightness=max(0, min(brightness, 255)),
-            channel=0,
-        )
-        self._strip.begin()
+        self._brightness = max(0, min(brightness, 255))
+        self._strip = WS2812SpiDriver(spi_bus=0, spi_device=0, led_count=led_count).get_strip()
         self.write(False)
 
     def write(self, value: bool) -> None:
-        color = self._Color(255, 255, 255) if value else self._Color(0, 0, 0)
-        for index in range(self._led_count):
-            self._strip.setPixelColor(index, color)
+        level = self._brightness if value else 0
+        color = self._Color(level, level, level)
+        self._strip.set_all_pixels(color)
         self._strip.show()
 
     def close(self) -> None:
@@ -48,7 +43,7 @@ class _Ws2812Driver:
 
 class LightController:
     def __init__(self) -> None:
-        self.pin = int(os.getenv("LIGHT_GPIO_PIN", "18"))
+        self.pin = int(os.getenv("LIGHT_GPIO_PIN", "10"))
         self.led_count = int(os.getenv("LIGHT_LED_COUNT", "16"))
         self.brightness = int(os.getenv("LIGHT_BRIGHTNESS", "255"))
         self.available = False
@@ -76,7 +71,7 @@ class LightController:
         try:
             driver = _Ws2812Driver(self.pin, self.led_count, self.brightness)
             self.available = True
-            self.driver_name = "ws2812"
+            self.driver_name = "ws2812_spi"
             self.error = None
             return driver
         except Exception as exc:
