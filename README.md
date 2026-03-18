@@ -196,6 +196,7 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ## Notes
 - Work light output is now wired through backend GPIO control.
 - Backend reads `LIGHT_GPIO_PIN` and `LIGHT_ACTIVE_HIGH` from `systemd/bamboo.env`.
-- Current implementation uses `gpiozero` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
+- Current implementation uses `gpiozero.PWMOutputDevice` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
+- The current UI behavior is `开灯 = 100% PWM duty`, `关灯 = 0% PWM duty`.
 - Frontend video is provided by backend WebRTC streaming.
 - `CanMV` CPU/KPU usage is shown when the CanMV payload includes `canmv_status`.

@@ -20,18 +20,15 @@ class _NoopDriver:
 
 class _GpioZeroDriver:
     def __init__(self, pin: int, active_high: bool) -> None:
-        from gpiozero import OutputDevice  # type: ignore[import-not-found]
+        from gpiozero import PWMOutputDevice  # type: ignore[import-not-found]
 
-        self._device = OutputDevice(pin=pin, active_high=active_high, initial_value=False)
+        self._device = PWMOutputDevice(pin=pin, active_high=active_high, initial_value=0.0)
 
     def write(self, value: bool) -> None:
-        if value:
-            self._device.on()
-        else:
-            self._device.off()
+        self._device.value = 1.0 if value else 0.0
 
     def close(self) -> None:
-        self._device.off()
+        self._device.value = 0.0
         self._device.close()
 
 
