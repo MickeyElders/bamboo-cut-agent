@@ -46,4 +46,7 @@ async def ws_canmv(ws: WebSocket) -> None:
 
 @router.websocket("/ws/video")
 async def ws_video(ws: WebSocket) -> None:
-    await runtime.video.run_session(ws)
+    try:
+        await runtime.video.run_session(ws)
+    except WebSocketDisconnect:
+        return

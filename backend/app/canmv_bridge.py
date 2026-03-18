@@ -49,7 +49,7 @@ class CanMvBridge:
         self._running = False
         if self._task:
             self._task.cancel()
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._task
         self._serial = None
 

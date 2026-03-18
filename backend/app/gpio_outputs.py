@@ -39,6 +39,10 @@ class _Ws2812Driver:
         self._led_count = led_count
         self._brightness = max(0, min(brightness, 255))
         self._strip = WS2812SpiDriver(spi_bus=0, spi_device=0, led_count=led_count).get_strip()
+        if hasattr(self._strip, "set_brightness"):
+            self._strip.set_brightness(self._brightness / 255.0)
+        elif hasattr(self._strip, "brightness"):
+            self._strip.brightness = self._brightness / 255.0
         logger.info(
             "ws2812 spi driver ready pin=%s led_count=%s brightness=%s",
             pin,
@@ -54,8 +58,9 @@ class _Ws2812Driver:
         count = max(0, min(active_leds, self._led_count))
         on_color = self._Color(self._brightness, self._brightness, self._brightness)
         off_color = self._Color(0, 0, 0)
-        for index in range(self._led_count):
-            self._strip.set_pixel(index, on_color if index < count else off_color)
+        self._strip.set_all_pixels(off_color)
+        for index in range(count):
+            self._strip.set_pixel_color(index, on_color)
         self._strip.show()
         logger.info("ws2812 spi render active_leds=%s total_leds=%s", count, self._led_count)
 
