@@ -10,7 +10,7 @@ PIP := $(VENV)/bin/pip
 SERIAL ?= /dev/serial/by-id/usb-Kendryte_CanMV_001000000-if00
 API_HOST ?= 0.0.0.0
 API_PORT ?= 8000
-SERVICE ?=
+SERVICE ?= bamboo-backend.service
 SERVICE_FILE ?= bamboo-backend.service
 FRONTEND_SERVICE ?=
 FRONTEND_SERVICE_FILE ?= bamboo-frontend.service
@@ -27,7 +27,7 @@ help:
 	@echo "  frontend-build   Build frontend"
 	@echo "  frontend-run     Run frontend dev server"
 	@echo "  canmv-tail       Tail CanMV serial output"
-	@echo "  deploy           Pull updates, update deps, rebuild frontend"
+	@echo "  deploy           Update deps, rebuild frontend, restart backend by default"
 	@echo "  install-service  Install systemd backend service"
 	@echo "  install-frontend-service Install systemd frontend service"
 	@echo "  install-kiosk-service Install systemd kiosk browser service"
