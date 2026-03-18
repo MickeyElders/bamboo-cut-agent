@@ -12,6 +12,8 @@ class _OutputDriver(Protocol):
 
     def write_count(self, active_leds: int) -> None: ...
 
+    def configure(self, active_leds: int, brightness: int, red: int, green: int, blue: int) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -22,6 +24,17 @@ class _NoopDriver:
 
     def write_count(self, active_leds: int) -> None:
         logger.warning("light noop driver write_count called active_leds=%s", active_leds)
+        return
+
+    def configure(self, active_leds: int, brightness: int, red: int, green: int, blue: int) -> None:
+        logger.warning(
+            "light noop driver configure called active_leds=%s brightness=%s rgb=(%s,%s,%s)",
+            active_leds,
+            brightness,
+            red,
+            green,
+            blue,
+        )
         return
 
     def close(self) -> None:
@@ -38,6 +51,9 @@ class _Ws2812Driver:
         self._Color = Color
         self._led_count = led_count
         self._brightness = max(0, min(brightness, 255))
+        self._red = self._brightness
+        self._green = self._brightness
+        self._blue = self._brightness
         self._strip = WS2812SpiDriver(spi_bus=0, spi_device=0, led_count=led_count).get_strip()
         if hasattr(self._strip, "set_brightness"):
             self._strip.set_brightness(self._brightness / 255.0)
@@ -55,14 +71,30 @@ class _Ws2812Driver:
         self.write_count(self._led_count if value else 0)
 
     def write_count(self, active_leds: int) -> None:
+        self.configure(active_leds, self._brightness, self._red, self._green, self._blue)
+
+    def configure(self, active_leds: int, brightness: int, red: int, green: int, blue: int) -> None:
         count = max(0, min(active_leds, self._led_count))
-        on_color = self._Color(self._brightness, self._brightness, self._brightness)
+        self._brightness = max(0, min(brightness, 255))
+        scale = self._brightness / 255.0
+        self._red = max(0, min(red, 255))
+        self._green = max(0, min(green, 255))
+        self._blue = max(0, min(blue, 255))
+        on_color = self._Color(int(self._red * scale), int(self._green * scale), int(self._blue * scale))
         off_color = self._Color(0, 0, 0)
         self._strip.set_all_pixels(off_color)
         for index in range(count):
             self._strip.set_pixel_color(index, on_color)
         self._strip.show()
-        logger.info("ws2812 spi render active_leds=%s total_leds=%s", count, self._led_count)
+        logger.info(
+            "ws2812 spi render active_leds=%s total_leds=%s brightness=%s rgb=(%s,%s,%s)",
+            count,
+            self._led_count,
+            self._brightness,
+            self._red,
+            self._green,
+            self._blue,
+        )
 
     def close(self) -> None:
         self.write(False)
@@ -77,6 +109,9 @@ class LightController:
         self.driver_name = "noop"
         self.error: str | None = None
         self._is_on = False
+        self.red = 255
+        self.green = 255
+        self.blue = 255
         self._driver: _OutputDriver = self._build_driver()
         logger.info(
             "light controller initialized driver=%s available=%s pin=%s led_count=%s brightness=%s error=%s",
@@ -106,6 +141,24 @@ class LightController:
         count = max(0, min(active_leds, self.led_count))
         logger.info("light write_count requested=%s clamped=%s", active_leds, count)
         self._driver.write_count(count)
+        self._is_on = count > 0
+        return count
+
+    def configure(self, active_leds: int, brightness: int, red: int, green: int, blue: int) -> int:
+        count = max(0, min(active_leds, self.led_count))
+        self.brightness = max(0, min(brightness, 255))
+        self.red = max(0, min(red, 255))
+        self.green = max(0, min(green, 255))
+        self.blue = max(0, min(blue, 255))
+        logger.info(
+            "light configure count=%s brightness=%s rgb=(%s,%s,%s)",
+            count,
+            self.brightness,
+            self.red,
+            self.green,
+            self.blue,
+        )
+        self._driver.configure(count, self.brightness, self.red, self.green, self.blue)
         self._is_on = count > 0
         return count
 

@@ -59,6 +59,17 @@ export function applyLightCount(count: number) {
   return postCommand("/api/control/light", { action: "set_count", value: count });
 }
 
+export function applyLightSettings(count: number, brightness: number, red: number, green: number, blue: number) {
+  return postCommand("/api/control/light", {
+    action: "configure",
+    value: count,
+    brightness,
+    red,
+    green,
+    blue
+  });
+}
+
 export function switchLightOff() {
   return postCommand("/api/control/light", { action: "off" });
 }

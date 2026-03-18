@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  applyLightCount,
+  applyLightSettings,
   engageClamp,
   fetchCutConfig,
   fetchVideoConfig,
@@ -17,7 +17,23 @@ import {
   uiWsUrl,
   videoWsUrl
 } from "./api";
+import { CanMvStatusPanel } from "./components/CanMvStatusPanel";
+import { ConfirmActionModal } from "./components/ConfirmActionModal";
+import { CutSettingsModal } from "./components/CutSettingsModal";
+import { DeviceControlPanel } from "./components/DeviceControlPanel";
+import { LightSettingsModal } from "./components/LightSettingsModal";
+import { ManualControlModal } from "./components/ManualControlModal";
+import { PiStatusPanel } from "./components/PiStatusPanel";
+import { SummaryTileGrid } from "./components/SummaryTileGrid";
+import { VisionPanel } from "./components/VisionPanel";
 import type { AiFrame, CutConfig, SystemStatus, VideoConfig } from "./types";
+import {
+  deriveRunState,
+  formatRatio,
+  getCutSummary,
+  getLightSummary,
+  hexToRgb
+} from "./utils/ui";
 
 const EMPTY_VIDEO: VideoConfig = {
   enabled: false,
@@ -50,6 +66,16 @@ const DEFAULT_CUT_CONFIG: CutConfig = {
   min_hits: 3,
   hold_ms: 200
 };
+
+const DEFAULT_LIGHT = {
+  count: 16,
+  brightness: 255,
+  color: "#ffffff"
+};
+
+type UiMessage =
+  | { type: "ai_frame"; payload: AiFrame }
+  | { type: "system_status"; payload: SystemStatus };
 
 function drawVisionOverlay(
   canvas: HTMLCanvasElement,
@@ -85,7 +111,6 @@ function drawVisionOverlay(
     ctx.stroke();
   }
 
-  ctx.lineWidth = 2;
   for (const det of detections) {
     ctx.strokeStyle = "#2de26d";
     ctx.fillStyle = "#2de26d";
@@ -93,60 +118,6 @@ function drawVisionOverlay(
     ctx.fillText(`${det.label} ${(det.score * 100).toFixed(0)}%`, det.x + 4, Math.max(14, det.y - 6));
   }
 }
-
-function formatPercent(value?: number | null) {
-  return value == null ? "-" : `${value.toFixed(1)}%`;
-}
-
-function formatTemp(value?: number | null) {
-  return value == null ? "-" : `${value.toFixed(1)} °C`;
-}
-
-function formatSeconds(value?: number | null) {
-  if (value == null) return "-";
-  const total = Math.max(0, Math.floor(value));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  return `${hours}h ${minutes}m ${seconds}s`;
-}
-
-function formatRatio(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function deriveRunState(frame: AiFrame, videoConnected: boolean) {
-  if (!videoConnected) {
-    return {
-      code: "video-offline",
-      label: "视频离线",
-      detail: "等待后端视频流与采集设备恢复。"
-    };
-  }
-  if (frame.cut_request) {
-    return {
-      code: "position-ready",
-      label: "到达切割位",
-      detail: "CanMV 已报告目标进入切割触发区。"
-    };
-  }
-  if (frame.detections.length > 0) {
-    return {
-      code: "feeding",
-      label: "识别运行中",
-      detail: "CanMV 正在跟踪目标，等待到达切割位。"
-    };
-  }
-  return {
-    code: "manual-ready",
-    label: "待机",
-    detail: "当前未发现目标，系统处于等待状态。"
-  };
-}
-
-type UiMessage =
-  | { type: "ai_frame"; payload: AiFrame }
-  | { type: "system_status"; payload: SystemStatus };
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -160,11 +131,16 @@ export default function App() {
   const [cutConfig, setCutConfig] = useState<CutConfig>(DEFAULT_CUT_CONFIG);
   const [cutDirty, setCutDirty] = useState(false);
   const [cutSaving, setCutSaving] = useState(false);
+  const [cutModalOpen, setCutModalOpen] = useState(false);
   const [cutError, setCutError] = useState("");
   const [controlError, setControlError] = useState("");
-  const [controlMode, setControlMode] = useState<"manual" | "auto">("manual");
-  const [lightPendingCount, setLightPendingCount] = useState(16);
-  const [lightDirty, setLightDirty] = useState(false);
+  const [controlMode, setControlMode] = useState<"manual" | "auto">("auto");
+  const [lightCount, setLightCount] = useState(DEFAULT_LIGHT.count);
+  const [lightBrightness, setLightBrightness] = useState(DEFAULT_LIGHT.brightness);
+  const [lightColor, setLightColor] = useState(DEFAULT_LIGHT.color);
+  const [lightModalOpen, setLightModalOpen] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
   const [aiFrame, setAiFrame] = useState<AiFrame>({
     timestamp: Date.now() / 1000,
     detections: [],
@@ -177,6 +153,11 @@ export default function App() {
   const manualMode = controlMode === "manual";
   const runState = useMemo(() => deriveRunState(aiFrame, videoConnected), [aiFrame, videoConnected]);
   const connectionState = wsConnected ? "在线" : "离线";
+  const cutSummary = useMemo(() => getCutSummary(cutConfig), [cutConfig]);
+  const lightSummary = useMemo(
+    () => getLightSummary(lightCount, lightBrightness, lightColor),
+    [lightCount, lightBrightness, lightColor]
+  );
 
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
@@ -202,6 +183,10 @@ export default function App() {
       .catch(() => {
         setCutError("获取切割位配置失败");
       });
+  }, []);
+
+  useEffect(() => {
+    void runControl(setAutoMode, () => setControlMode("auto"));
   }, []);
 
   useEffect(() => {
@@ -246,7 +231,7 @@ export default function App() {
     canvas.width = video.videoWidth || videoConfig.width || 1280;
     canvas.height = video.videoHeight || videoConfig.height || 720;
     drawVisionOverlay(canvas, aiFrame.detections, cutConfig, Boolean(aiFrame.cut_request));
-  }, [aiFrame, cutConfig, videoConfig.height, videoConfig.width]);
+  }, [aiFrame, cutConfig, videoConfig.width, videoConfig.height]);
 
   useEffect(() => {
     return () => {
@@ -265,7 +250,6 @@ export default function App() {
     if (signalRef.current || !videoConfig.enabled) return;
 
     setVideoError("");
-
     const peer = new RTCPeerConnection({ iceServers: [] });
     peerRef.current = peer;
     peer.addTransceiver("video", { direction: "recvonly" });
@@ -273,9 +257,7 @@ export default function App() {
     peer.ontrack = (event) => {
       if (videoRef.current) {
         videoRef.current.srcObject = event.streams[0];
-        void videoRef.current.play().catch(() => {
-          setVideoError("视频播放失败");
-        });
+        void videoRef.current.play().catch(() => setVideoError("视频播放失败"));
         videoRef.current.onloadedmetadata = () => {
           const canvas = canvasRef.current;
           const video = videoRef.current;
@@ -288,8 +270,7 @@ export default function App() {
     };
 
     peer.onconnectionstatechange = () => {
-      const state = peer.connectionState;
-      if (state === "failed" || state === "disconnected" || state === "closed") {
+      if (["failed", "disconnected", "closed"].includes(peer.connectionState)) {
         setVideoConnected(false);
       }
     };
@@ -313,10 +294,7 @@ export default function App() {
           await peer.setLocalDescription(answer);
           ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
         } else if (msg.type === "ice" && msg.candidate) {
-          await peer.addIceCandidate({
-            candidate: msg.candidate,
-            sdpMLineIndex: msg.sdpMLineIndex ?? 0
-          });
+          await peer.addIceCandidate({ candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex ?? 0 });
         } else if (msg.type === "error") {
           setVideoError(msg.detail ?? "视频后端错误");
         }
@@ -330,9 +308,7 @@ export default function App() {
       setVideoConnected(false);
     };
 
-    ws.onerror = () => {
-      setVideoError("视频信令连接失败");
-    };
+    ws.onerror = () => setVideoError("视频信令连接失败");
 
     peer.onicecandidate = (event) => {
       if (event.candidate && ws.readyState === WebSocket.OPEN) {
@@ -357,13 +333,16 @@ export default function App() {
     }
   }
 
-  async function handleSaveCutConfig() {
+  async function handleSaveCutConfig(closeAfterSave = false) {
     setCutSaving(true);
     setCutError("");
     try {
       const saved = await saveCutConfig(cutConfig);
       setCutConfig(saved);
       setCutDirty(false);
+      if (closeAfterSave) {
+        setCutModalOpen(false);
+      }
     } catch {
       setCutError("保存切割位配置失败");
     } finally {
@@ -371,317 +350,165 @@ export default function App() {
     }
   }
 
+  async function handleApplyLightSettings() {
+    const { red, green, blue } = hexToRgb(lightColor);
+    await runControl(
+      () => applyLightSettings(lightCount, lightBrightness, red, green, blue),
+      () => setLightModalOpen(false)
+    );
+  }
+
   function updateCutConfig<K extends keyof CutConfig>(key: K, value: CutConfig[K]) {
     setCutConfig((prev) => ({ ...prev, [key]: value }));
     setCutDirty(true);
   }
 
+  function resetLightDefaults() {
+    setLightCount(DEFAULT_LIGHT.count);
+    setLightBrightness(DEFAULT_LIGHT.brightness);
+    setLightColor(DEFAULT_LIGHT.color);
+  }
+
+  function resetCutDefaults() {
+    setCutConfig(DEFAULT_CUT_CONFIG);
+    setCutDirty(true);
+  }
+
+  function handleRequestManualMode() {
+    if (manualMode) {
+      setManualModalOpen(true);
+      return;
+    }
+    setManualConfirmOpen(true);
+  }
+
+  function handleConfirmManualMode() {
+    setManualConfirmOpen(false);
+    void runControl(setManualMode, () => {
+      setControlMode("manual");
+      setManualModalOpen(true);
+    });
+  }
+
+  function handleReturnAutoMode() {
+    void runControl(setAutoMode, () => {
+      setControlMode("auto");
+      setManualModalOpen(false);
+      setManualConfirmOpen(false);
+    });
+  }
+
   return (
-    <main className="app">
-      <section className="panel vision-panel">
-        <div className="header">
-          <h2>视觉画面</h2>
-          <span className={`badge ${connectionState === "在线" ? "ok" : "warn"}`}>{connectionState}</span>
-        </div>
+    <>
+      <main className="app">
+        <VisionPanel
+          connectionState={connectionState}
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          runState={runState}
+          aiFrame={aiFrame}
+          manualMode={manualMode}
+          lightCount={lightCount}
+          videoConfig={videoConfig}
+          videoError={videoError}
+        />
 
-        <div className="video-wrap hero-video">
-          <video ref={videoRef} autoPlay playsInline muted />
-          <canvas ref={canvasRef} className="overlay" />
-        </div>
+        <aside className="sidebar">
+          <PiStatusPanel status={systemStatus.raspberry_pi} />
+          <CanMvStatusPanel status={systemStatus} />
 
-        <div className="vision-footer">
-          <div className={`run-banner run-${runState.code}`}>
-            <div className="run-banner-title">{runState.label}</div>
-            <div className="run-banner-detail">{runState.detail}</div>
-          </div>
-
-          <div className="process-strip">
-            <div className={`process-step ${aiFrame.detections.length > 0 ? "active" : ""}`}>
-              <span className="step-index">01</span>
-              <span className="step-name">目标检测</span>
-              <strong>{aiFrame.detections.length > 0 ? "进行中" : "等待中"}</strong>
+          <section className="panel side-panel">
+            <div className="header">
+              <h2>切割位设置</h2>
+              <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "待应用" : "已应用"}</span>
             </div>
-            <div className={`process-step ${aiFrame.cut_request ? "active" : ""}`}>
-              <span className="step-index">02</span>
-              <span className="step-name">切割位判断</span>
-              <strong>{aiFrame.cut_request ? "已到位" : "检测中"}</strong>
-            </div>
-            <div className={`process-step ${manualMode ? "active" : ""}`}>
-              <span className="step-index">03</span>
-              <span className="step-name">控制模式</span>
-              <strong>{manualMode ? "手动" : "自动"}</strong>
-            </div>
-            <div className={`process-step ${lightPendingCount > 0 ? "active" : ""}`}>
-              <span className="step-index">04</span>
-              <span className="step-name">灯带预设</span>
-              <strong>{lightPendingCount} / 16</strong>
-            </div>
-          </div>
 
-          <div className="spec-line">
-            <span>视频源</span>
-            <strong>{videoConfig.device}</strong>
-          </div>
-          <div className="spec-line">
-            <span>视频模式</span>
-            <strong>
-              {videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}
-            </strong>
-          </div>
-          <div className="spec-line">
-            <span>切割触发</span>
-            <strong>{aiFrame.cut_request ? "已触发" : "空闲"}</strong>
-          </div>
-          <div className="spec-line">
-            <span>识别目标数</span>
-            <strong>{aiFrame.detections.length}</strong>
-          </div>
-
-          {videoError ? <div className="error-text">{videoError}</div> : null}
-        </div>
-      </section>
-
-      <aside className="sidebar">
-        <section className="panel side-panel">
-          <div className="header">
-            <h2>树莓派</h2>
-            <span className="badge ok">{systemStatus.raspberry_pi.hostname}</span>
-          </div>
-          <div className="stat">
-            <span>CPU</span>
-            <strong>{formatPercent(systemStatus.raspberry_pi.cpu_percent)}</strong>
-          </div>
-          <div className="stat">
-            <span>内存</span>
-            <strong>{formatPercent(systemStatus.raspberry_pi.memory_percent)}</strong>
-          </div>
-          <div className="stat">
-            <span>运行时长</span>
-            <strong>{formatSeconds(systemStatus.raspberry_pi.uptime_seconds)}</strong>
-          </div>
-        </section>
-
-        <section className="panel side-panel">
-          <div className="header">
-            <h2>CanMV</h2>
-            <span className={`badge ${systemStatus.canmv_connected ? "ok" : "warn"}`}>
-              {systemStatus.canmv_connected ? "在线" : "离线"}
-            </span>
-          </div>
-          <div className="stat">
-            <span>CPU</span>
-            <strong>{formatPercent(systemStatus.canmv_status?.cpu_percent)}</strong>
-          </div>
-          <div className="stat">
-            <span>KPU</span>
-            <strong>{formatPercent(systemStatus.canmv_status?.kpu_percent)}</strong>
-          </div>
-          <div className="stat">
-            <span>内存</span>
-            <strong>{formatPercent(systemStatus.canmv_status?.memory_percent)}</strong>
-          </div>
-          <div className="stat">
-            <span>温度</span>
-            <strong>{formatTemp(systemStatus.canmv_status?.temperature_c)}</strong>
-          </div>
-          <div className="stat">
-            <span>FPS</span>
-            <strong>{systemStatus.canmv_fps?.toFixed(1) ?? "-"}</strong>
-          </div>
-          <div className="stat">
-            <span>最近上报</span>
-            <strong>{formatSeconds(systemStatus.canmv_last_seen_seconds)}</strong>
-          </div>
-        </section>
-
-        <section className="panel side-panel">
-          <div className="header">
-            <h2>切割位设置</h2>
-            <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "待应用" : "已应用"}</span>
-          </div>
-
-          <label className="toggle-row">
-            <span>显示辅助线</span>
-            <input
-              type="checkbox"
-              checked={cutConfig.show_guide}
-              onChange={(event) => updateCutConfig("show_guide", event.target.checked)}
+            <SummaryTileGrid
+              tone="warning"
+              items={[
+                { label: "切割线", value: formatRatio(cutConfig.line_ratio_x) },
+                { label: "容差带", value: formatRatio(cutConfig.tolerance_ratio_x) },
+                { label: "命中次数", value: cutConfig.min_hits },
+                { label: "保持时间", value: `${cutConfig.hold_ms} ms` }
+              ]}
             />
-          </label>
 
-          <div className="slider-block">
-            <div className="slider-head">
-              <span>切割线位置</span>
-              <strong>{formatRatio(cutConfig.line_ratio_x)}</strong>
+            <div className="summary-card summary-card-warning">
+              <span>当前摘要</span>
+              <strong>{cutSummary}</strong>
             </div>
-            <input
-              className="slider"
-              type="range"
-              min="0"
-              max="1"
-              step="0.001"
-              value={cutConfig.line_ratio_x}
-              onChange={(event) => updateCutConfig("line_ratio_x", Number(event.target.value))}
-            />
-          </div>
 
-          <div className="slider-block">
-            <div className="slider-head">
-              <span>触发容差带</span>
-              <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
-            </div>
-            <input
-              className="slider"
-              type="range"
-              min="0.001"
-              max="0.05"
-              step="0.001"
-              value={cutConfig.tolerance_ratio_x}
-              onChange={(event) => updateCutConfig("tolerance_ratio_x", Number(event.target.value))}
-            />
-          </div>
+            <button className="primary wide" onClick={() => setCutModalOpen(true)}>
+              设置切割位
+            </button>
+            {cutError ? <div className="error-text">{cutError}</div> : null}
+          </section>
 
-          <div className="stat">
-            <span>最少命中次数</span>
-            <strong>{cutConfig.min_hits}</strong>
-          </div>
-          <div className="stat">
-            <span>保持时间</span>
-            <strong>{cutConfig.hold_ms} ms</strong>
-          </div>
+          <DeviceControlPanel
+            aiFrame={aiFrame}
+            runState={runState}
+            manualMode={manualMode}
+            videoConnected={videoConnected}
+            lightCount={lightCount}
+            lightBrightness={lightBrightness}
+            lightColor={lightColor}
+            lightSummary={lightSummary}
+            onOpenManual={handleRequestManualMode}
+            onSetAuto={handleReturnAutoMode}
+            onEmergencyStop={() => void runControl(signalEmergencyStop)}
+          />
+        </aside>
+      </main>
 
-          <button className="primary wide" onClick={() => void handleSaveCutConfig()} disabled={cutSaving}>
-            {cutSaving ? "保存中..." : "应用到 CanMV"}
-          </button>
-          {cutError ? <div className="error-text">{cutError}</div> : null}
-        </section>
+      <LightSettingsModal
+        open={lightModalOpen}
+        count={lightCount}
+        brightness={lightBrightness}
+        color={lightColor}
+        onCountChange={setLightCount}
+        onBrightnessChange={setLightBrightness}
+        onColorChange={setLightColor}
+        onReset={resetLightDefaults}
+        onClose={() => setLightModalOpen(false)}
+        onApply={() => void handleApplyLightSettings()}
+      />
 
-        <section className="panel side-panel">
-          <div className="header">
-            <h2>设备控制</h2>
-            <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "视频中" : "空闲"}</span>
-          </div>
+      <CutSettingsModal
+        open={cutModalOpen}
+        cutConfig={cutConfig}
+        cutDirty={cutDirty}
+        cutSaving={cutSaving}
+        onChange={updateCutConfig}
+        onReset={resetCutDefaults}
+        onClose={() => setCutModalOpen(false)}
+        onApply={() => void handleSaveCutConfig(true)}
+      />
 
-          <div className="mode-row">
-            <button
-              className={manualMode ? "primary mode-button" : "mode-button"}
-              onClick={() => void runControl(setManualMode, () => setControlMode("manual"))}
-              disabled={manualMode}
-            >
-              手动
-            </button>
-            <button
-              className={!manualMode ? "primary mode-button" : "mode-button"}
-              onClick={() => void runControl(setAutoMode, () => setControlMode("auto"))}
-              disabled={!manualMode}
-            >
-              自动
-            </button>
-          </div>
+      <ManualControlModal
+        open={manualModalOpen}
+        manualMode={manualMode}
+        error={controlError}
+        onClose={() => setManualModalOpen(false)}
+        onSetManual={() => void runControl(setManualMode, () => setControlMode("manual"))}
+        onSetAuto={handleReturnAutoMode}
+        onStartFeed={() => void runControl(startFeed)}
+        onStopFeed={() => void runControl(stopFeed)}
+        onEngageClamp={() => void runControl(engageClamp)}
+        onReleaseClamp={() => void runControl(releaseClamp)}
+        onStartCutter={() => void runControl(startCutter)}
+        onStopCutter={() => void runControl(stopCutter)}
+        onOpenLightSettings={() => setLightModalOpen(true)}
+        onLightOff={() => void runControl(switchLightOff, () => setLightCount(0))}
+      />
 
-          <div className="machine-schema">
-            <div className={`schema-node ${aiFrame.detections.length > 0 ? "active" : ""}`}>
-              <span>视觉识别</span>
-              <strong>{aiFrame.detections.length > 0 ? "运行中" : "等待中"}</strong>
-            </div>
-            <div className={`schema-link ${aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
-            <div className={`schema-node ${aiFrame.cut_request ? "active" : ""}`}>
-              <span>到位信号</span>
-              <strong>{aiFrame.cut_request ? "已到位" : "未到位"}</strong>
-            </div>
-            <div className={`schema-link ${lightPendingCount > 0 ? "active" : ""}`}>{">"}</div>
-            <div className={`schema-node ${manualMode ? "active" : ""}`}>
-              <span>控制模式</span>
-              <strong>{manualMode ? "手动" : "自动"}</strong>
-            </div>
-          </div>
-
-          <div className="stat">
-            <span>当前运行状态</span>
-            <strong>{runState.label}</strong>
-          </div>
-          <div className="stat">
-            <span>检测框数量</span>
-            <strong>{aiFrame.detections.length}</strong>
-          </div>
-          <div className="stat">
-            <span>切割信号</span>
-            <strong>{aiFrame.cut_request ? "触发" : "未触发"}</strong>
-          </div>
-          <div className="stat">
-            <span>灯带预设数量</span>
-            <strong>{lightPendingCount} / 16</strong>
-          </div>
-
-          <div className="slider-block">
-            <div className="slider-head">
-              <span>灯带点亮数量</span>
-              <strong>{lightPendingCount} / 16</strong>
-            </div>
-            <input
-              className="slider"
-              type="range"
-              min="0"
-              max="16"
-              step="1"
-              value={lightPendingCount}
-              disabled={!manualMode}
-              onChange={(event) => {
-                setLightPendingCount(Number(event.target.value));
-                setLightDirty(true);
-              }}
-            />
-          </div>
-
-          <div className="controls controls-single">
-            <button className="primary" onClick={() => void runControl(startFeed)} disabled={!manualMode}>
-              启动送料
-            </button>
-            <button onClick={() => void runControl(stopFeed)} disabled={!manualMode}>
-              停止送料
-            </button>
-            <button className="primary" onClick={() => void runControl(engageClamp)} disabled={!manualMode}>
-              压紧夹持
-            </button>
-            <button onClick={() => void runControl(releaseClamp)} disabled={!manualMode}>
-              释放夹持
-            </button>
-            <button className="primary" onClick={() => void runControl(startCutter)} disabled={!manualMode}>
-              切刀下压
-            </button>
-            <button onClick={() => void runControl(stopCutter)} disabled={!manualMode}>
-              切刀抬起
-            </button>
-            <button
-              onClick={() =>
-                void runControl(() => applyLightCount(lightPendingCount), () => {
-                  setLightDirty(false);
-                })
-              }
-              disabled={!manualMode || !lightDirty}
-            >
-              应用灯带设置
-            </button>
-            <button
-              className="primary"
-              onClick={() =>
-                void runControl(switchLightOff, () => {
-                  setLightPendingCount(0);
-                  setLightDirty(false);
-                })
-              }
-              disabled={!manualMode}
-            >
-              关灯
-            </button>
-            <button className="danger" onClick={() => void runControl(signalEmergencyStop)}>
-              急停
-            </button>
-          </div>
-
-          {controlError ? <div className="error-text">{controlError}</div> : null}
-        </section>
-      </aside>
-    </main>
+      <ConfirmActionModal
+        open={manualConfirmOpen}
+        title="进入手动调试"
+        description="进入手动模式后，设备将退出自动运行。该模式仅用于安装调试，确认继续吗？"
+        confirmLabel="确认进入手动"
+        onConfirm={handleConfirmManualMode}
+        onCancel={() => setManualConfirmOpen(false)}
+      />
+    </>
   );
 }

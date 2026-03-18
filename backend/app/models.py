@@ -45,6 +45,10 @@ class ActionControlRequest(BaseModel):
 class LightControlRequest(BaseModel):
     action: str
     value: int | None = None
+    brightness: int | None = Field(default=None, ge=0, le=255)
+    red: int | None = Field(default=None, ge=0, le=255)
+    green: int | None = Field(default=None, ge=0, le=255)
+    blue: int | None = Field(default=None, ge=0, le=255)
 
 
 class PiSystemStatus(BaseModel):

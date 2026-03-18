@@ -25,6 +25,10 @@ class _MotorStatus:
     light_pin: int | None = None
     light_led_count: int = 16
     light_active_leds: int = 0
+    light_brightness: int = 255
+    light_red: int = 255
+    light_green: int = 255
+    light_blue: int = 255
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0
@@ -50,6 +54,10 @@ class MotorController:
         self._status.light_pin = self._light.pin
         self._status.light_led_count = self._light.led_count
         self._status.light_active_leds = 0
+        self._status.light_brightness = self._light.brightness
+        self._status.light_red = self._light.red
+        self._status.light_green = self._light.green
+        self._status.light_blue = self._light.blue
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
         self._cut_hold_ms = int(os.getenv("CUT_HOLD_MS", "150"))
@@ -127,7 +135,29 @@ class MotorController:
             self._status.light_error = self._light.error
             self._status.light_pin = self._light.pin
             self._status.light_led_count = self._light.led_count
+            self._status.light_brightness = self._light.brightness
+            self._status.light_red = self._light.red
+            self._status.light_green = self._light.green
+            self._status.light_blue = self._light.blue
             logger.info("motor command applied cmd=%s status=%s", cmd, self._status_snapshot())
+            return self._status_snapshot()
+
+    async def configure_light(self, *, active_leds: int, brightness: int, red: int, green: int, blue: int) -> dict[str, object]:
+        async with self._lock:
+            self._ensure_manual("light_config")
+            self._status.light_active_leds = self._light.configure(active_leds, brightness, red, green, blue)
+            self._status.light_on = self._status.light_active_leds > 0
+            self._status.light_available = self._light.available
+            self._status.light_driver = self._light.driver_name
+            self._status.light_error = self._light.error
+            self._status.light_pin = self._light.pin
+            self._status.light_led_count = self._light.led_count
+            self._status.light_brightness = self._light.brightness
+            self._status.light_red = self._light.red
+            self._status.light_green = self._light.green
+            self._status.light_blue = self._light.blue
+            self._status.last_action = "light_config"
+            logger.info("motor light configured status=%s", self._status_snapshot())
             return self._status_snapshot()
 
     async def process_ai_frame(self, frame: AiFrame) -> None:
@@ -238,6 +268,10 @@ class MotorController:
             self._status.light_error = self._light.error
             self._status.light_pin = self._light.pin
             self._status.light_led_count = self._light.led_count
+            self._status.light_brightness = self._light.brightness
+            self._status.light_red = self._light.red
+            self._status.light_green = self._light.green
+            self._status.light_blue = self._light.blue
             self._light.close()
             logger.info("motor controller shutdown complete status=%s", self._status_snapshot())
 
