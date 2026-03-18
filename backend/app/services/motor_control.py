@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 from dataclasses import asdict, dataclass
 
 from ..gpio_outputs import LightController
 from ..models import AiFrame
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -53,6 +56,7 @@ class MotorController:
         self._cut_up_ms = int(os.getenv("CUT_UP_MS", "300"))
         self._release_ms = int(os.getenv("CLAMP_RELEASE_MS", "200"))
         self._resume_delay_ms = int(os.getenv("FEED_RESUME_DELAY_MS", "120"))
+        logger.info("motor controller initialized status=%s", self._status_snapshot())
 
     async def status(self) -> dict[str, object]:
         async with self._lock:
@@ -60,6 +64,7 @@ class MotorController:
 
     async def command(self, cmd: str, value: int | None = None) -> dict[str, object]:
         async with self._lock:
+            logger.info("motor command received cmd=%s value=%s", cmd, value)
             if cmd == "mode_manual":
                 await self._cancel_auto_task_locked()
                 self._status.mode = "manual"
@@ -122,6 +127,7 @@ class MotorController:
             self._status.light_error = self._light.error
             self._status.light_pin = self._light.pin
             self._status.light_led_count = self._light.led_count
+            logger.info("motor command applied cmd=%s status=%s", cmd, self._status_snapshot())
             return self._status_snapshot()
 
     async def process_ai_frame(self, frame: AiFrame) -> None:
@@ -143,10 +149,12 @@ class MotorController:
                     self._status.auto_state = "feeding"
 
         if start_cycle:
+            logger.info("auto cycle triggered by ai frame")
             self._auto_task = asyncio.create_task(self._run_auto_cycle())
 
     async def _run_auto_cycle(self) -> None:
         try:
+            logger.info("auto cycle start")
             await self._apply_auto_state(feed_running=False, auto_state="position_reached", last_action="feed_stop_auto")
             await self._sleep_ms(self._resume_delay_ms)
 
@@ -171,7 +179,9 @@ class MotorController:
                     self._status.auto_state = "feeding"
                     self._status.cycle_count += 1
                     self._status.last_action = "cycle_complete"
+                    logger.info("auto cycle complete status=%s", self._status_snapshot())
         except asyncio.CancelledError:
+            logger.info("auto cycle cancelled")
             raise
         finally:
             async with self._lock:
@@ -215,6 +225,7 @@ class MotorController:
 
     async def shutdown(self) -> None:
         async with self._lock:
+            logger.info("motor controller shutdown begin")
             await self._cancel_auto_task_locked()
             self._status.feed_running = False
             self._status.clamp_engaged = False
@@ -228,6 +239,7 @@ class MotorController:
             self._status.light_pin = self._light.pin
             self._status.light_led_count = self._light.led_count
             self._light.close()
+            logger.info("motor controller shutdown complete status=%s", self._status_snapshot())
 
     def _ensure_manual(self, cmd: str) -> None:
         if self._status.mode != "manual":

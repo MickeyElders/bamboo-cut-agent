@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Protocol
+
+logger = logging.getLogger(__name__)
 
 
 class _OutputDriver(Protocol):
@@ -14,9 +17,11 @@ class _OutputDriver(Protocol):
 
 class _NoopDriver:
     def write(self, value: bool) -> None:
+        logger.warning("light noop driver write called value=%s", value)
         return
 
     def write_count(self, active_leds: int) -> None:
+        logger.warning("light noop driver write_count called active_leds=%s", active_leds)
         return
 
     def close(self) -> None:
@@ -34,6 +39,12 @@ class _Ws2812Driver:
         self._led_count = led_count
         self._brightness = max(0, min(brightness, 255))
         self._strip = WS2812SpiDriver(spi_bus=0, spi_device=0, led_count=led_count).get_strip()
+        logger.info(
+            "ws2812 spi driver ready pin=%s led_count=%s brightness=%s",
+            pin,
+            led_count,
+            self._brightness,
+        )
         self.write(False)
 
     def write(self, value: bool) -> None:
@@ -46,6 +57,7 @@ class _Ws2812Driver:
         for index in range(self._led_count):
             self._strip.set_pixel(index, on_color if index < count else off_color)
         self._strip.show()
+        logger.info("ws2812 spi render active_leds=%s total_leds=%s", count, self._led_count)
 
     def close(self) -> None:
         self.write(False)
@@ -61,26 +73,39 @@ class LightController:
         self.error: str | None = None
         self._is_on = False
         self._driver: _OutputDriver = self._build_driver()
+        logger.info(
+            "light controller initialized driver=%s available=%s pin=%s led_count=%s brightness=%s error=%s",
+            self.driver_name,
+            self.available,
+            self.pin,
+            self.led_count,
+            self.brightness,
+            self.error,
+        )
 
     @property
     def is_on(self) -> bool:
         return self._is_on
 
     def reset(self) -> bool:
+        logger.info("light reset")
         self.write_count(0)
         return self._is_on
 
     def set_on(self, enabled: bool) -> bool:
+        logger.info("light set_on enabled=%s", enabled)
         self.write_count(self.led_count if enabled else 0)
         return self._is_on
 
     def write_count(self, active_leds: int) -> int:
         count = max(0, min(active_leds, self.led_count))
+        logger.info("light write_count requested=%s clamped=%s", active_leds, count)
         self._driver.write_count(count)
         self._is_on = count > 0
         return count
 
     def close(self) -> None:
+        logger.info("light controller close")
         self._driver.close()
 
     def _build_driver(self) -> _OutputDriver:
@@ -94,4 +119,5 @@ class LightController:
             self.available = False
             self.driver_name = "noop"
             self.error = str(exc)
+            logger.exception("light driver init failed")
             return _NoopDriver()

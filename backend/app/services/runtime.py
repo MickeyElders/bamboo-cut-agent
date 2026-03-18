@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 
@@ -14,6 +15,8 @@ from ..system_status import SystemStatusStore
 from ..video_webrtc import VideoWebRtcManager
 from ..ws_manager import WebSocketHub
 from .motor_control import MotorController
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimeServices:
@@ -49,11 +52,14 @@ class RuntimeServices:
             await asyncio.sleep(2.0)
 
     async def startup(self) -> None:
+        logger.info("runtime startup begin")
         await self.canmv_bridge.start()
         await self.canmv_bridge.set_cut_config(self.cut_config_store.get())
         self.status_task = asyncio.create_task(self.status_broadcast_loop())
+        logger.info("runtime startup complete")
 
     async def shutdown(self) -> None:
+        logger.info("runtime shutdown begin")
         await self.canmv_bridge.stop()
         if self.status_task is not None:
             self.status_task.cancel()
@@ -64,12 +70,17 @@ class RuntimeServices:
             self.status_task = None
         await self.motor.shutdown()
         await self.video.shutdown()
+        logger.info("runtime shutdown complete")
 
     async def execute_control(self, command: str, value: int | None = None) -> CommandAck:
         try:
+            logger.info("execute control command=%s value=%s", command, value)
             await self.motor.command(command, value)
-            return CommandAck(command=command, value=value, timestamp=time.time())
+            ack = CommandAck(command=command, value=value, timestamp=time.time())
+            logger.info("execute control success command=%s value=%s", command, value)
+            return ack
         except ValueError as exc:
+            logger.warning("execute control rejected command=%s value=%s detail=%s", command, value, exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

@@ -347,17 +347,6 @@ export default function App() {
     };
   }
 
-  function stopVideo() {
-    signalRef.current?.close();
-    signalRef.current = null;
-    peerRef.current?.close();
-    peerRef.current = null;
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setVideoConnected(false);
-  }
-
   async function runControl(action: () => Promise<unknown>, onSuccess?: () => void) {
     setControlError("");
     try {
@@ -448,14 +437,6 @@ export default function App() {
             <strong>{aiFrame.detections.length}</strong>
           </div>
 
-          <div className="action-row">
-            <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>
-              重连视频
-            </button>
-            <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>
-              停止视频
-            </button>
-          </div>
           {videoError ? <div className="error-text">{videoError}</div> : null}
         </div>
       </section>
