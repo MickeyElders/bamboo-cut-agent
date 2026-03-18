@@ -52,6 +52,8 @@ class LightController:
         self.led_count = int(os.getenv("LIGHT_LED_COUNT", "16"))
         self.brightness = int(os.getenv("LIGHT_BRIGHTNESS", "255"))
         self.available = False
+        self.driver_name = "noop"
+        self.error: str | None = None
         self._is_on = False
         self._driver: _OutputDriver = self._build_driver()
 
@@ -74,7 +76,11 @@ class LightController:
         try:
             driver = _Ws2812Driver(self.pin, self.led_count, self.brightness)
             self.available = True
+            self.driver_name = "ws2812"
+            self.error = None
             return driver
-        except Exception:
+        except Exception as exc:
             self.available = False
+            self.driver_name = "noop"
+            self.error = str(exc)
             return _NoopDriver()

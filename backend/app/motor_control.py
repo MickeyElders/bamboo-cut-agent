@@ -21,6 +21,10 @@ class MotorController:
         self._auto_task: asyncio.Task | None = None
         self._light = LightController()
         self._status.light_on = self._light.reset()
+        self._status.light_available = self._light.available
+        self._status.light_driver = self._light.driver_name
+        self._status.light_error = self._light.error
+        self._status.light_pin = self._light.pin
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
         self._cut_hold_ms = int(os.getenv("CUT_HOLD_MS", "150"))
@@ -182,6 +186,10 @@ class MotorController:
             self._status.cutter_down = False
             self._status.cut_request_active = False
             self._status.light_on = self._light.reset()
+            self._status.light_available = self._light.available
+            self._status.light_driver = self._light.driver_name
+            self._status.light_error = self._light.error
+            self._status.light_pin = self._light.pin
             self._light.close()
 
     def _ensure_manual(self, cmd: str) -> None:

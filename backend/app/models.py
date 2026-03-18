@@ -37,6 +37,10 @@ class MotorStatus(BaseModel):
     clamp_engaged: bool = False
     cutter_down: bool = False
     light_on: bool = False
+    light_available: bool = False
+    light_driver: str = "noop"
+    light_error: str | None = None
+    light_pin: int | None = None
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0
