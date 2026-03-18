@@ -139,14 +139,15 @@ The shared runtime config uses:
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
 CANMV_BAUDRATE=115200
-LIGHT_GPIO_PIN=15
+LIGHT_GPIO_PIN=2
 LIGHT_ACTIVE_HIGH=1
 ```
 
-Warning:
-- `GPIO15` is the Raspberry Pi `RXD` pin for `/dev/serial0`.
-- If you are still using `UART over GPIO` for `CanMV -> Raspberry Pi`, do not drive the work light from `GPIO15` at the same time.
-- In that case, move the light output to another BCM GPIO, or disable the hardware serial path first.
+Work light wiring:
+- `Red` -> `5V`
+- `Black` -> `GND`
+- `Yellow` -> `BCM GPIO2`
+- `LIGHT_ACTIVE_HIGH=1` means output high level turns the light on
 
 Enable Raspberry Pi hardware serial:
 

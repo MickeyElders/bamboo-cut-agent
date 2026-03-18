@@ -22,7 +22,14 @@ export async function sendMotorCommand(
     body: JSON.stringify({ command })
   });
   if (!res.ok) {
-    throw new Error(`Command failed: ${command}`);
+    let detail = "";
+    try {
+      const payload = await res.json() as { detail?: string };
+      detail = payload.detail ?? "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || `命令执行失败: ${command}`);
   }
   return (await res.json()) as MotorStatus;
 }

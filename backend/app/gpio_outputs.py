@@ -37,7 +37,7 @@ class _GpioZeroDriver:
 
 class LightController:
     def __init__(self) -> None:
-        self.pin = int(os.getenv("LIGHT_GPIO_PIN", "15"))
+        self.pin = int(os.getenv("LIGHT_GPIO_PIN", "2"))
         self.active_high = os.getenv("LIGHT_ACTIVE_HIGH", "1").lower() not in {"0", "false", "no"}
         self.available = False
         self._is_on = False

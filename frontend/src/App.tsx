@@ -158,6 +158,7 @@ export default function App() {
   const [cutDirty, setCutDirty] = useState(false);
   const [cutSaving, setCutSaving] = useState(false);
   const [cutError, setCutError] = useState("");
+  const [motorError, setMotorError] = useState("");
   const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [], cut_request: false });
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
@@ -395,8 +396,13 @@ export default function App() {
       | "light_off"
       | "emergency_stop"
   ) {
-    const status = await sendMotorCommand(cmd);
-    setMotor(status);
+    setMotorError("");
+    try {
+      const status = await sendMotorCommand(cmd);
+      setMotor(status);
+    } catch (error) {
+      setMotorError(error instanceof Error ? error.message : "控制命令执行失败");
+    }
   }
 
   async function handleSaveCutConfig() {
@@ -600,6 +606,7 @@ export default function App() {
             <button onClick={() => void handleMotorCommand("light_off")} disabled={!manualMode || !motor.light_on}>关灯</button>
             <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>急停</button>
           </div>
+          {motorError ? <div className="error-text">{motorError}</div> : null}
         </section>
       </aside>
     </main>
