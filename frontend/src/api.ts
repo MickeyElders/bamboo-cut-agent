@@ -1,4 +1,4 @@
-import type { CutConfig, MotorStatus, SystemStatus, VideoConfig } from "./types";
+import type { CommandAck, CutConfig, SystemStatus, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -34,15 +34,7 @@ export async function sendMotorCommand(
     }
     throw new Error(detail || `命令执行失败: ${command}`);
   }
-  return (await res.json()) as MotorStatus;
-}
-
-export async function fetchMotorStatus() {
-  const res = await fetch(`${API_BASE}/api/motor/status`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch motor status");
-  }
-  return (await res.json()) as MotorStatus;
+  return (await res.json()) as CommandAck;
 }
 
 export async function fetchVideoConfig() {

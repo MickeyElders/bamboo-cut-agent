@@ -1,33 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchCutConfig,
-  fetchMotorStatus,
-  fetchSystemStatus,
   fetchVideoConfig,
   saveCutConfig,
   sendMotorCommand,
   uiWsUrl,
   videoWsUrl
 } from "./api";
-import type { AiFrame, CutConfig, MotorStatus, SystemStatus, VideoConfig } from "./types";
-
-const EMPTY_STATUS: MotorStatus = {
-  mode: "manual",
-  feed_running: false,
-  clamp_engaged: false,
-  cutter_down: false,
-  light_on: false,
-  light_available: false,
-  light_driver: "noop",
-  light_error: null,
-  light_pin: null,
-  light_led_count: 16,
-  light_active_leds: 0,
-  cut_request_active: false,
-  auto_state: "manual_ready",
-  cycle_count: 0,
-  last_action: "init"
-};
+import type { AiFrame, CutConfig, SystemStatus, VideoConfig } from "./types";
 
 const EMPTY_VIDEO: VideoConfig = {
   enabled: false,
@@ -126,28 +106,17 @@ function formatRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function deriveRunState(motor: MotorStatus, frame: AiFrame, videoConnected: boolean) {
+function deriveRunState(frame: AiFrame, videoConnected: boolean) {
   if (!videoConnected) {
     return { code: "video-offline", label: "视频离线", detail: "正在等待视频流和设备遥测数据。" };
   }
-  if (motor.auto_state === "cutting" || motor.cutter_down) {
-    return { code: "cutting", label: "切割中", detail: "刀片当前处于下压切割位置。" };
-  }
-  if (motor.auto_state === "clamping" || motor.auto_state === "position_reached" || motor.cut_request_active || frame.cut_request) {
+  if (frame.cut_request) {
     return { code: "position-ready", label: "到达切割位", detail: "CanMV 已报告当前竹段到达切割线位置。" };
   }
-  if (motor.feed_running) {
-    return { code: "feeding", label: "送料中", detail: "传送带正在将竹料送往切割工位。" };
+  if (frame.detections.length > 0) {
+    return { code: "feeding", label: "识别中", detail: "CanMV 正在跟踪竹节并等待到达切割位。" };
   }
-  if (motor.mode === "auto") {
-    return { code: "auto-standby", label: "自动待机", detail: "自动流程已就绪，等待下一段竹料进入。" };
-  }
-  return { code: "manual-ready", label: "手动待命", detail: "当前为手动调试模式，等待操作指令。" };
-}
-
-function deriveClampState(motor: MotorStatus) {
-  if (motor.clamp_engaged) return motor.cutter_down ? "已夹紧" : "已压紧";
-  return "已释放";
+  return { code: "manual-ready", label: "待命", detail: "当前等待新的识别目标或控制指令。" };
 }
 
 export default function App() {
@@ -157,7 +126,6 @@ export default function App() {
   const signalRef = useRef<WebSocket | null>(null);
   const cutDirtyRef = useRef(false);
 
-  const [motor, setMotor] = useState<MotorStatus>(EMPTY_STATUS);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
   const [videoConfig, setVideoConfig] = useState<VideoConfig>(EMPTY_VIDEO);
   const [cutConfig, setCutConfig] = useState<CutConfig>(DEFAULT_CUT_CONFIG);
@@ -165,15 +133,15 @@ export default function App() {
   const [cutSaving, setCutSaving] = useState(false);
   const [cutError, setCutError] = useState("");
   const [motorError, setMotorError] = useState("");
-  const [lightPendingCount, setLightPendingCount] = useState(0);
+  const [controlMode, setControlMode] = useState<"manual" | "auto">("manual");
+  const [lightPendingCount, setLightPendingCount] = useState(16);
   const [lightDirty, setLightDirty] = useState(false);
   const [aiFrame, setAiFrame] = useState<AiFrame>({ timestamp: Date.now() / 1000, detections: [], cut_request: false });
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
   const [videoError, setVideoError] = useState("");
-  const manualMode = motor.mode === "manual";
-  const runState = useMemo(() => deriveRunState(motor, aiFrame, videoConnected), [motor, aiFrame, videoConnected]);
-  const clampState = useMemo(() => deriveClampState(motor), [motor]);
+  const manualMode = controlMode === "manual";
+  const runState = useMemo(() => deriveRunState(aiFrame, videoConnected), [aiFrame, videoConnected]);
 
   const connectionState = useMemo(() => (wsConnected ? "在线" : "离线"), [wsConnected]);
 
@@ -182,13 +150,6 @@ export default function App() {
   }, [cutDirty]);
 
   useEffect(() => {
-    if (!lightDirty) {
-      setLightPendingCount(motor.light_active_leds);
-    }
-  }, [motor.light_active_leds, lightDirty]);
-
-  useEffect(() => {
-    fetchMotorStatus().then(setMotor).catch(() => undefined);
     fetchVideoConfig()
       .then((config) => {
         setVideoConfig(config);
@@ -210,71 +171,30 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadMotorStatus() {
-      try {
-        const next = await fetchMotorStatus();
-        if (!cancelled) {
-          setMotor(next);
-        }
-      } catch {
-        // keep last known state
-      }
-    }
-
-    void loadMotorStatus();
-    const timer = window.setInterval(() => {
-      void loadMotorStatus();
-    }, 800);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSystemStatus() {
-      try {
-        const next = await fetchSystemStatus();
-        if (!cancelled) {
-          setSystemStatus(next);
-        }
-      } catch {
-        if (!cancelled) {
-          setVideoError((prev) => prev || "获取系统状态失败");
-        }
-      }
-    }
-
-    void loadSystemStatus();
-    const timer = window.setInterval(() => {
-      void loadSystemStatus();
-    }, 2000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
     const ws = new WebSocket(uiWsUrl());
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data) as AiFrame;
-      setAiFrame(data);
-      setSystemStatus((prev) => ({
-        ...prev,
-        canmv_connected: true,
-        canmv_last_seen_seconds: 0,
-        canmv_fps: data.fps ?? prev.canmv_fps,
-        canmv_status: data.canmv_status ?? prev.canmv_status
-      }));
-      if (!cutDirtyRef.current && data.cut_config) {
-        setCutConfig(data.cut_config);
+      const message = JSON.parse(event.data) as
+        | { type: "ai_frame"; payload: AiFrame }
+        | { type: "system_status"; payload: SystemStatus };
+
+      if (message.type === "ai_frame") {
+        const data = message.payload;
+        setAiFrame(data);
+        setSystemStatus((prev) => ({
+          ...prev,
+          canmv_connected: true,
+          canmv_last_seen_seconds: 0,
+          canmv_fps: data.fps ?? prev.canmv_fps,
+          canmv_status: data.canmv_status ?? prev.canmv_status
+        }));
+        if (!cutDirtyRef.current && data.cut_config) {
+          setCutConfig(data.cut_config);
+        }
+        return;
+      }
+
+      if (message.type === "system_status") {
+        setSystemStatus(message.payload);
       }
     };
     ws.onopen = () => setWsConnected(true);
@@ -415,8 +335,17 @@ export default function App() {
   ) {
     setMotorError("");
     try {
-      const status = await sendMotorCommand(cmd, value);
-      setMotor(status);
+      await sendMotorCommand(cmd, value);
+      if (cmd === "mode_manual") {
+        setControlMode("manual");
+      } else if (cmd === "mode_auto") {
+        setControlMode("auto");
+      } else if (cmd === "light_set_count") {
+        setLightDirty(false);
+      } else if (cmd === "light_off") {
+        setLightPendingCount(0);
+        setLightDirty(false);
+      }
     } catch (error) {
       setMotorError(error instanceof Error ? error.message : "控制命令执行失败");
     }
@@ -443,7 +372,6 @@ export default function App() {
 
   async function handleApplyLightCount() {
     await handleMotorCommand("light_set_count", lightPendingCount);
-    setLightDirty(false);
   }
 
   return (
@@ -464,29 +392,30 @@ export default function App() {
           </div>
           <div className="process-strip">
             <div className={`process-step ${motor.feed_running ? "active" : ""}`}>
+            <div className={`process-step ${aiFrame.detections.length > 0 ? "active" : ""}`}>
               <span className="step-index">01</span>
-              <span className="step-name">送料传送带</span>
-              <strong>{motor.feed_running ? "运行中" : "已停止"}</strong>
+              <span className="step-name">目标检测</span>
+              <strong>{aiFrame.detections.length > 0 ? "进行中" : "等待中"}</strong>
             </div>
-            <div className={`process-step ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>
+            <div className={`process-step ${aiFrame.cut_request ? "active" : ""}`}>
               <span className="step-index">02</span>
               <span className="step-name">切割位置</span>
-              <strong>{motor.cut_request_active || aiFrame.cut_request ? "已到位" : "检测中"}</strong>
+              <strong>{aiFrame.cut_request ? "已到位" : "检测中"}</strong>
             </div>
-            <div className={`process-step ${motor.clamp_engaged ? "active" : ""}`}>
+            <div className={`process-step ${manualMode ? "active" : ""}`}>
               <span className="step-index">03</span>
-              <span className="step-name">压紧机构</span>
-              <strong>{clampState}</strong>
+              <span className="step-name">控制模式</span>
+              <strong>{manualMode ? "手动" : "自动"}</strong>
             </div>
-            <div className={`process-step ${motor.cutter_down ? "active" : ""}`}>
+            <div className={`process-step ${lightPendingCount > 0 ? "active" : ""}`}>
               <span className="step-index">04</span>
-              <span className="step-name">切刀机构</span>
-              <strong>{motor.cutter_down ? "下压中" : "待命"}</strong>
+              <span className="step-name">灯带设置</span>
+              <strong>{lightPendingCount} / 16</strong>
             </div>
           </div>
           <div className="spec-line">视频源 <strong>{videoConfig.device}</strong></div>
           <div className="spec-line">视频模式 <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
-          <div className="spec-line">切割触发 <strong>{motor.cut_request_active || aiFrame.cut_request ? "已触发" : "空闲"}</strong></div>
+          <div className="spec-line">切割触发 <strong>{aiFrame.cut_request ? "已触发" : "空闲"}</strong></div>
           <div className="action-row">
             <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>重连视频</button>
             <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>停止视频</button>
@@ -592,47 +521,40 @@ export default function App() {
             </button>
           </div>
           <div className="machine-schema">
-            <div className={`schema-node ${motor.feed_running ? "active" : ""}`}>
-              <span>传送带</span>
-              <strong>{motor.feed_running ? "送料中" : "已停止"}</strong>
+            <div className={`schema-node ${aiFrame.detections.length > 0 ? "active" : ""}`}>
+              <span>视觉识别</span>
+              <strong>{aiFrame.detections.length > 0 ? "运行中" : "等待中"}</strong>
             </div>
-            <div className={`schema-link ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
-            <div className={`schema-node ${motor.clamp_engaged ? "active" : ""}`}>
-              <span>压紧机构</span>
-              <strong>{clampState}</strong>
+            <div className={`schema-link ${aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
+            <div className={`schema-node ${manualMode ? "active" : ""}`}>
+              <span>控制模式</span>
+              <strong>{manualMode ? "手动" : "自动"}</strong>
             </div>
-            <div className={`schema-link ${motor.cutter_down ? "active" : ""}`}>{">"}</div>
-            <div className={`schema-node ${motor.cutter_down ? "active" : ""}`}>
-              <span>切刀机构</span>
-              <strong>{motor.cutter_down ? "切割中" : "待命"}</strong>
+            <div className={`schema-link ${lightPendingCount > 0 ? "active" : ""}`}>{">"}</div>
+            <div className={`schema-node ${lightPendingCount > 0 ? "active" : ""}`}>
+              <span>灯带预设</span>
+              <strong>{lightPendingCount} / 16</strong>
             </div>
           </div>
           <div className="stat"><span>当前状态</span><strong>{runState.label}</strong></div>
-          <div className="stat"><span>自动流程步骤</span><strong>{motor.auto_state}</strong></div>
           <div className="stat"><span>模式</span><strong>{manualMode ? "手动" : "自动"}</strong></div>
-          <div className="stat"><span>送料传送带</span><strong>{motor.feed_running ? "运行中" : "已停止"}</strong></div>
-          <div className="stat"><span>压紧机构</span><strong>{clampState}</strong></div>
-          <div className="stat"><span>切刀机构</span><strong>{motor.cutter_down ? "下压" : "抬起"}</strong></div>
-          <div className="stat"><span>工作灯</span><strong>{motor.light_on ? "开启" : "关闭"}</strong></div>
-          <div className="stat"><span>灯带驱动</span><strong>{motor.light_driver}</strong></div>
-          <div className="stat"><span>数据引脚</span><strong>{motor.light_pin ?? "-"}</strong></div>
-          <div className="stat"><span>点亮数量</span><strong>{motor.light_active_leds} / {motor.light_led_count}</strong></div>
-          <div className="stat"><span>循环次数</span><strong>{motor.cycle_count}</strong></div>
-          <div className="stat"><span>最后动作</span><strong>{motor.last_action}</strong></div>
+          <div className="stat"><span>识别状态</span><strong>{aiFrame.detections.length > 0 ? "已识别目标" : "无目标"}</strong></div>
+          <div className="stat"><span>切割位信号</span><strong>{aiFrame.cut_request ? "到位" : "未到位"}</strong></div>
+          <div className="stat"><span>灯带预设数量</span><strong>{lightPendingCount} / 16</strong></div>
           <div className="stat"><span>识别目标数</span><strong>{aiFrame.detections.length}</strong></div>
           <div className="slider-block">
             <div className="slider-head">
               <span>灯带点亮数量</span>
-              <strong>{lightPendingCount} / {motor.light_led_count}</strong>
+              <strong>{lightPendingCount} / 16</strong>
             </div>
             <input
               className="slider"
               type="range"
               min="0"
-              max={String(motor.light_led_count)}
+              max="16"
               step="1"
               value={lightPendingCount}
-              disabled={!manualMode || !motor.light_available}
+              disabled={!manualMode}
               onChange={(event) => {
                 setLightPendingCount(Number(event.target.value));
                 setLightDirty(true);
@@ -646,11 +568,10 @@ export default function App() {
             <button onClick={() => void handleMotorCommand("clamp_release")} disabled={!manualMode}>释放夹持</button>
             <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>切刀下压</button>
             <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>切刀抬起</button>
-            <button className="primary" onClick={() => void handleApplyLightCount()} disabled={!manualMode || !motor.light_available || !lightDirty}>应用灯带设置</button>
-            <button onClick={() => void handleMotorCommand("light_off")} disabled={!manualMode || !motor.light_on}>关灯</button>
+            <button className="primary" onClick={() => void handleApplyLightCount()} disabled={!manualMode || !lightDirty}>应用灯带设置</button>
+            <button onClick={() => void handleMotorCommand("light_off")} disabled={!manualMode}>关灯</button>
             <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>急停</button>
           </div>
-          {motor.light_error ? <div className="error-text">{motor.light_error}</div> : null}
           {motorError ? <div className="error-text">{motorError}</div> : null}
         </section>
       </aside>

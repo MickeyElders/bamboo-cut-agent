@@ -32,6 +32,13 @@ class MotorCommand(BaseModel):
     value: int | None = None
 
 
+class CommandAck(BaseModel):
+    ok: bool = True
+    command: str
+    value: int | None = None
+    timestamp: float
+
+
 class MotorStatus(BaseModel):
     mode: str = "manual"
     feed_running: bool = False

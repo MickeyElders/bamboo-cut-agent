@@ -16,22 +16,11 @@ export type AiFrame = {
   cut_config?: CutConfig | null;
 };
 
-export type MotorStatus = {
-  mode: "manual" | "auto";
-  feed_running: boolean;
-  clamp_engaged: boolean;
-  cutter_down: boolean;
-  light_on: boolean;
-  light_available: boolean;
-  light_driver: string;
-  light_error?: string | null;
-  light_pin?: number | null;
-  light_led_count: number;
-  light_active_leds: number;
-  cut_request_active: boolean;
-  auto_state: string;
-  cycle_count: number;
-  last_action: string;
+export type CommandAck = {
+  ok: boolean;
+  command: string;
+  value?: number | null;
+  timestamp: number;
 };
 
 export type VideoConfig = {

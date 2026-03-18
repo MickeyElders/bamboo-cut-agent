@@ -101,7 +101,7 @@ class CanMvBridge:
                             result = self._on_frame(frame)
                             if asyncio.iscoroutine(result):
                                 await result
-                        await self._hub.broadcast_to_ui(frame.model_dump_json())
+                        await self._hub.broadcast_to_ui(json.dumps({"type": "ai_frame", "payload": frame.model_dump()}))
             except Exception:
                 self._serial = None
                 await asyncio.sleep(2)
