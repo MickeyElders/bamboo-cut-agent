@@ -96,11 +96,13 @@ body {
   overflow-x: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  overscroll-behavior: contain;
 }
 
 .side-panel {
   padding: 12px 14px 14px;
   min-height: 0;
+  flex: 0 0 auto;
 }
 
 .header {
