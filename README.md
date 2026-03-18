@@ -1,42 +1,126 @@
 # Bamboo Cut Agent
 
-Initial scaffold for:
-- React + TypeScript UI
-- FastAPI backend
-- CanMV AI result communication
+竹材切割工作站控制系统，包含：
+- `frontend/`：React + TypeScript 工业风 HMI 界面
+- `backend/`：FastAPI 后端、CanMV 桥接、视频转发、设备控制
 
-## Structure
-- `frontend/`: React UI (Vite)
-- `backend/`: FastAPI service, WebSocket bridge for CanMV/UI
+## Runtime Architecture
+
+整体链路分为三部分：
+- 视频链路：`CanMV HDMI -> HDMI 采集卡 -> Raspberry Pi -> backend WebRTC -> frontend`
+- AI/状态链路：`CanMV -> UART 或 WebSocket -> Raspberry Pi backend`
+- 控制链路：`frontend -> backend /api/control/* -> Raspberry Pi 执行机构`
+
+当前架构约束：
+- 前端运行时状态只来自 `ws://<pi-ip>:8000/ws/ui`
+- 前端不再通过 HTTP 轮询设备状态
+- 控制命令全部是独立 HTTP 接口
+- 机器执行状态仅保留在后端控制器内部，不作为公共前端状态模型暴露
+
+`/ws/ui` 只推送两类消息：
+- `system_status`
+- `ai_frame`
+
+## Project Structure
+
+- `frontend/`：Vite 前端工程
+- `backend/`：FastAPI 服务
+- `systemd/`：树莓派部署用服务文件
+- `pi/`：树莓派侧辅助内容
 
 ## Quick Start
-### 1) Backend
+
+### Backend
+
 ```bash
 cd backend
 python -m venv .venv
+
 # Windows
 .venv\Scripts\activate
+
 # Linux/macOS
 # source .venv/bin/activate
+
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2) Frontend
+### Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-UI default URL: `http://localhost:5173`
-Backend default URL: `http://localhost:8000`
+默认地址：
+- UI：`http://localhost:5173`
+- Backend：`http://localhost:8000`
+
+## API Overview
+
+### State APIs
+
+- `GET /api/video/config`
+  - 一次性读取视频后端配置和采集设备信息
+- `GET /api/cut-config`
+  - 一次性读取切割位配置
+- `PUT /api/cut-config`
+  - 保存切割位配置，并同步下发给 CanMV
+
+### WebSocket Channels
+
+- `WS /ws/ui`
+  - UI 状态推送通道
+  - 消息类型：
+    - `system_status`
+    - `ai_frame`
+- `WS /ws/video`
+  - WebRTC 信令通道，前端通过它建立视频播放
+- `WS /ws/canmv`
+  - CanMV 可选 WebSocket 上报通道
+
+### Control APIs
+
+每个控制动作都是单独接口，统一返回：
+
+```json
+{
+  "ok": true,
+  "command": "feed_start",
+  "value": null,
+  "timestamp": 1710000000.123
+}
+```
+
+控制接口如下：
+- `POST /api/control/mode`
+  - `{"mode":"manual"}`
+  - `{"mode":"auto"}`
+- `POST /api/control/feed`
+  - `{"action":"start"}`
+  - `{"action":"stop"}`
+- `POST /api/control/clamp`
+  - `{"action":"engage"}`
+  - `{"action":"release"}`
+- `POST /api/control/cutter`
+  - `{"action":"down"}`
+  - `{"action":"up"}`
+- `POST /api/control/light`
+  - `{"action":"off"}`
+  - `{"action":"set_count","value":8}`
+- `POST /api/control/emergency-stop`
+  - `{}`
 
 ## Video Streaming
-The UI now expects backend-provided WebRTC video instead of browser `getUserMedia`.
 
-### Raspberry Pi packages
-Install system packages for GStreamer WebRTC and Python GI bindings:
+前端不直接使用浏览器 `getUserMedia`，而是播放后端提供的 WebRTC 视频。
+
+### Raspberry Pi Packages
+
+在树莓派安装 GStreamer WebRTC 相关依赖：
+
 ```bash
 sudo apt update
 sudo apt install -y python3-gi python3-gst-1.0 \
@@ -47,16 +131,20 @@ sudo apt install -y python3-gi python3-gst-1.0 \
   gstreamer1.0-libav gstreamer1.0-nice
 ```
 
-`webrtcbin` also requires ICE support from `gstreamer1.0-nice`. If it is missing, backend logs show errors like `sendrecv can't handle caps ... Your GStreamer installation is missing a plug-in`.
+如果缺少 `gstreamer1.0-nice`，后端日志通常会出现：
+- `Your GStreamer installation is missing a plug-in`
 
-If the backend runs inside `backend/.venv`, recreate it with system packages exposed so `python3-gi` is importable:
+如果后端运行在 `backend/.venv` 中，需要确保可以访问系统 GI 组件：
+
 ```bash
 rm -rf backend/.venv
 make backend-install
 ```
 
-### Video environment
-Set these before starting the backend when using the HDMI capture card:
+### Video Environment
+
+使用 HDMI 采集卡时，启动后端前设置：
+
 ```bash
 export VIDEO_DEVICE=/dev/v4l/by-id/usb-MACROSILICON_V-Z624_20210621-video-index0
 export VIDEO_WIDTH=1280
@@ -66,16 +154,21 @@ export VIDEO_ENCODER=x264enc
 export VIDEO_BITRATE_KBPS=2500
 ```
 
-The frontend starts video through WebRTC signaling on `ws://<pi-ip>:8000/ws/video`.
+前端通过：
+- `ws://<pi-ip>:8000/ws/video`
 
-## Systemd Service
-The repository includes backend/frontend/kiosk `systemd` units and one shared env file template:
+建立 WebRTC 视频连接。
+
+## Systemd Services
+
+仓库包含以下服务文件：
 - `systemd/bamboo-backend.service`
 - `systemd/bamboo-frontend.service`
 - `systemd/bamboo-kiosk.service`
 - `systemd/bamboo.env.example`
 
-Install and enable it on Raspberry Pi:
+树莓派安装方式：
+
 ```bash
 cp systemd/bamboo.env.example systemd/bamboo.env
 make install-service
@@ -83,15 +176,17 @@ make install-frontend-service
 make install-kiosk-service
 ```
 
-For a kiosk-only appliance setup:
+如果要做纯 kiosk 设备：
+
 ```bash
 sudo systemctl disable --now lightdm || true
 sudo systemctl set-default multi-user.target
 ```
 
-The kiosk service starts Chromium in fullscreen on tty1 and opens `BROWSER_URL` from `systemd/bamboo.env`.
+`bamboo-kiosk.service` 会在 tty1 上全屏启动 Chromium，并打开 `systemd/bamboo.env` 中配置的 `BROWSER_URL`。
 
-Useful commands:
+常用命令：
+
 ```bash
 make service-status
 make service-restart
@@ -106,35 +201,39 @@ make deploy SERVICE=bamboo-backend.service FRONTEND_SERVICE=bamboo-frontend.serv
 ```
 
 ## CanMV Communication
-CanMV can send AI results by either WebSocket (recommended) or serial.
+
+CanMV 可以通过 WebSocket 或串口向树莓派发送 AI 结果。
 
 ### Wiring: CanMV to Raspberry Pi
-Use two independent links:
 
-1. `HDMI` for video
-2. `UART over GPIO` for detections, cut requests, and cut-line config
+推荐使用两条独立链路：
 
-#### HDMI video path
+1. `HDMI` 传视频
+2. `UART over GPIO` 传识别结果、切割请求和切割位配置
+
+### HDMI Video Path
+
 - `CanMV HDMI` -> `HDMI capture card input`
 - `Capture card USB` -> `Raspberry Pi USB`
 
-The backend reads the capture card through V4L2 and forwards video to the UI over WebRTC.
+后端通过 V4L2 读取采集卡，再通过 WebRTC 转给前端。
 
-#### UART GPIO path
-Recommended three-wire UART connection:
+### UART GPIO Path
 
-- `CanMV Pin 8  TX1(IO3)` -> `Raspberry Pi Pin 10 RXD(GPIO15)`
-- `CanMV Pin 10 RX1(IO4)` -> `Raspberry Pi Pin 8  TXD(GPIO14)`
-- `CanMV Pin 9  GND` -> `Raspberry Pi Pin 6  GND`
+推荐三线 UART：
 
-Rules:
+- `CanMV Pin 8 TX1(IO3)` -> `Raspberry Pi Pin 10 RXD(GPIO15)`
+- `CanMV Pin 10 RX1(IO4)` -> `Raspberry Pi Pin 8 TXD(GPIO14)`
+- `CanMV Pin 9 GND` -> `Raspberry Pi Pin 6 GND`
+
+规则：
 - `TX -> RX`
 - `RX -> TX`
 - `GND -> GND`
-- Do not connect `5V`
-- Do not connect `3.3V` power rails between the boards
+- 不要连接 `5V`
+- 不要把两块板的 `3.3V` 电源轨直接互连
 
-The shared runtime config uses:
+共享运行配置：
 
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
@@ -144,62 +243,95 @@ LIGHT_LED_COUNT=16
 LIGHT_BRIGHTNESS=255
 ```
 
-Work light wiring:
+### Work Light Wiring
+
+本项目当前使用树莓派 5 的 SPI 路径驱动 `WS2812/WS2812B` 灯带：
+
 - `Red` -> `5V`
 - `Black` -> `GND`
 - `Yellow` -> `BCM GPIO10 / MOSI / physical pin 19`
-- Raspberry Pi 5 uses the SPI data path for `WS2812/WS2812B` style strips in this project
-- `LIGHT_LED_COUNT` should match the actual LED count on the strip
-- `LIGHT_BRIGHTNESS` uses the range `0-255`
 
-Enable Raspberry Pi hardware serial:
+说明：
+- `LIGHT_LED_COUNT` 必须和实际灯珠数量一致
+- `LIGHT_BRIGHTNESS` 范围为 `0-255`
+
+### Enable Raspberry Pi Serial
 
 ```bash
 sudo raspi-config
 ```
 
-Then set:
-- `Interface Options` -> `Serial Port`
+设置：
+- `Interface Options -> Serial Port`
 - `Login shell over serial`: `No`
 - `Serial port hardware enabled`: `Yes`
 
-Reboot and verify:
+重启后检查：
 
 ```bash
 ls -l /dev/serial0
 ```
 
-### WebSocket ingest
-- URL: `ws://<pi-ip>:8000/ws/canmv`
-- Message example:
+### CanMV WebSocket Ingest
+
+- 地址：`ws://<pi-ip>:8000/ws/canmv`
+- 消息示例：
+
 ```json
 {
   "timestamp": 1710000000.123,
   "fps": 18.2,
+  "cut_request": false,
+  "canmv_status": {
+    "cpu_percent": 18.5,
+    "kpu_percent": 42.0,
+    "memory_percent": 36.0,
+    "temperature_c": 54.2
+  },
   "detections": [
-    {"label": "node", "score": 0.92, "x": 120, "y": 80, "w": 60, "h": 40}
+    {
+      "label": "node",
+      "score": 0.92,
+      "x": 120,
+      "y": 80,
+      "w": 60,
+      "h": 40
+    }
   ]
 }
 ```
 
-UI subscribes to:
+UI 订阅：
 - `ws://<pi-ip>:8000/ws/ui`
 
-### Serial ingest
-- Serial transport is used for `CanMV -> Raspberry Pi` control/status when HDMI carries video.
-- Serial format: newline-delimited JSON, same schema as websocket payload.
-- The default runtime port is `/dev/serial0`.
+后端会向 UI 推送：
+- `system_status`
+- `ai_frame`
 
-### Local simulation (without CanMV board)
+### CanMV Serial Ingest
+
+- 当 HDMI 负责视频时，串口负责 `CanMV -> Raspberry Pi` 的 AI/状态上报
+- 串口格式：按行分隔的 JSON
+- 结构与 WebSocket 上报负载一致
+- 默认端口：`/dev/serial0`
+
+### Local Simulation
+
+无 CanMV 板卡时可本地模拟：
+
 ```bash
 cd backend
 python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ```
 
 ## Notes
-- Work light output is now driven as `WS2812` serial data over Raspberry Pi 5 SPI from the backend.
-- Backend reads `LIGHT_GPIO_PIN`, `LIGHT_LED_COUNT`, and `LIGHT_BRIGHTNESS` from `systemd/bamboo.env`.
-- Current implementation uses `rpi5-ws2812` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
-- The current UI behavior is `开灯 = 全部灯珠白色点亮`, `关灯 = 全灭`.
-- Frontend video is provided by backend WebRTC streaming.
-- `CanMV` CPU/KPU usage is shown when the CanMV payload includes `canmv_status`.
+
+- 工作灯由后端通过 Raspberry Pi 5 SPI 方式输出 `WS2812` 数据信号
+- 后端从 `systemd/bamboo.env` 读取 `LIGHT_GPIO_PIN`、`LIGHT_LED_COUNT`、`LIGHT_BRIGHTNESS`
+- 当前优先使用 `rpi5-ws2812`，在非树莓派开发环境下降级为 no-op 驱动
+- 当前 UI 灯带行为：
+  - 滑块设置 `0-16` 的待应用灯珠数量
+  - `应用灯带设置` 将该数量写入灯带
+  - `关灯` 立即关闭全部灯珠
+- 前端视频由后端 WebRTC 提供
+- 当 CanMV 上报 `canmv_status` 时，UI 会显示 CPU/KPU/内存/温度

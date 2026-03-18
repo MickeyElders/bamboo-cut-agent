@@ -27,11 +27,6 @@ class AiFrame(BaseModel):
     cut_config: "CutConfig | None" = None
 
 
-class MotorCommand(BaseModel):
-    command: str
-    value: int | None = None
-
-
 class CommandAck(BaseModel):
     ok: bool = True
     command: str
@@ -39,22 +34,17 @@ class CommandAck(BaseModel):
     timestamp: float
 
 
-class MotorStatus(BaseModel):
-    mode: str = "manual"
-    feed_running: bool = False
-    clamp_engaged: bool = False
-    cutter_down: bool = False
-    light_on: bool = False
-    light_available: bool = False
-    light_driver: str = "noop"
-    light_error: str | None = None
-    light_pin: int | None = None
-    light_led_count: int = 16
-    light_active_leds: int = 0
-    cut_request_active: bool = False
-    auto_state: str = "manual_ready"
-    cycle_count: int = 0
-    last_action: str = "init"
+class ModeControlRequest(BaseModel):
+    mode: str
+
+
+class ActionControlRequest(BaseModel):
+    action: str
+
+
+class LightControlRequest(BaseModel):
+    action: str
+    value: int | None = None
 
 
 class PiSystemStatus(BaseModel):

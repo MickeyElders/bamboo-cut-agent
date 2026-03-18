@@ -3,9 +3,29 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+from dataclasses import asdict, dataclass
 
-from .gpio_outputs import LightController
-from .models import AiFrame, MotorStatus
+from ..gpio_outputs import LightController
+from ..models import AiFrame
+
+
+@dataclass(slots=True)
+class _MotorStatus:
+    mode: str = "manual"
+    feed_running: bool = False
+    clamp_engaged: bool = False
+    cutter_down: bool = False
+    light_on: bool = False
+    light_available: bool = False
+    light_driver: str = "noop"
+    light_error: str | None = None
+    light_pin: int | None = None
+    light_led_count: int = 16
+    light_active_leds: int = 0
+    cut_request_active: bool = False
+    auto_state: str = "manual_ready"
+    cycle_count: int = 0
+    last_action: str = "init"
 
 
 class MotorController:
@@ -16,7 +36,7 @@ class MotorController:
     """
 
     def __init__(self) -> None:
-        self._status = MotorStatus()
+        self._status = _MotorStatus()
         self._lock = asyncio.Lock()
         self._auto_task: asyncio.Task | None = None
         self._light = LightController()
@@ -34,11 +54,11 @@ class MotorController:
         self._release_ms = int(os.getenv("CLAMP_RELEASE_MS", "200"))
         self._resume_delay_ms = int(os.getenv("FEED_RESUME_DELAY_MS", "120"))
 
-    async def status(self) -> MotorStatus:
+    async def status(self) -> dict[str, object]:
         async with self._lock:
-            return self._status.model_copy(deep=True)
+            return self._status_snapshot()
 
-    async def command(self, cmd: str, value: int | None = None) -> MotorStatus:
+    async def command(self, cmd: str, value: int | None = None) -> dict[str, object]:
         async with self._lock:
             if cmd == "mode_manual":
                 await self._cancel_auto_task_locked()
@@ -102,7 +122,7 @@ class MotorController:
             self._status.light_error = self._light.error
             self._status.light_pin = self._light.pin
             self._status.light_led_count = self._light.led_count
-            return self._status.model_copy(deep=True)
+            return self._status_snapshot()
 
     async def process_ai_frame(self, frame: AiFrame) -> None:
         start_cycle = False
@@ -212,3 +232,6 @@ class MotorController:
     def _ensure_manual(self, cmd: str) -> None:
         if self._status.mode != "manual":
             raise ValueError(f"Command requires manual mode: {cmd}")
+
+    def _status_snapshot(self) -> dict[str, object]:
+        return asdict(self._status)

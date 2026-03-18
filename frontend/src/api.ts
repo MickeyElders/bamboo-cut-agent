@@ -1,40 +1,70 @@
-import type { CommandAck, CutConfig, SystemStatus, VideoConfig } from "./types";
+import type { CommandAck, CutConfig, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
-export async function sendMotorCommand(
-  command:
-    | "mode_manual"
-    | "mode_auto"
-    | "feed_start"
-    | "feed_stop"
-    | "clamp_engage"
-    | "clamp_release"
-    | "cutter_down"
-    | "cutter_up"
-    | "light_on"
-    | "light_off"
-    | "light_set_count"
-    | "emergency_stop"
-,
-  value?: number
-) {
-  const res = await fetch(`${API_BASE}/api/motor/command`, {
+async function postCommand(path: string, body?: Record<string, unknown>) {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command, value })
+    body: JSON.stringify(body ?? {})
   });
+
   if (!res.ok) {
     let detail = "";
     try {
-      const payload = await res.json() as { detail?: string };
+      const payload = (await res.json()) as { detail?: string };
       detail = payload.detail ?? "";
     } catch {
       detail = "";
     }
-    throw new Error(detail || `命令执行失败: ${command}`);
+    throw new Error(detail || `控制命令执行失败: ${path}`);
   }
+
   return (await res.json()) as CommandAck;
+}
+
+export function setManualMode() {
+  return postCommand("/api/control/mode", { mode: "manual" });
+}
+
+export function setAutoMode() {
+  return postCommand("/api/control/mode", { mode: "auto" });
+}
+
+export function startFeed() {
+  return postCommand("/api/control/feed", { action: "start" });
+}
+
+export function stopFeed() {
+  return postCommand("/api/control/feed", { action: "stop" });
+}
+
+export function engageClamp() {
+  return postCommand("/api/control/clamp", { action: "engage" });
+}
+
+export function releaseClamp() {
+  return postCommand("/api/control/clamp", { action: "release" });
+}
+
+export function startCutter() {
+  return postCommand("/api/control/cutter", { action: "down" });
+}
+
+export function stopCutter() {
+  return postCommand("/api/control/cutter", { action: "up" });
+}
+
+export function applyLightCount(count: number) {
+  return postCommand("/api/control/light", { action: "set_count", value: count });
+}
+
+export function switchLightOff() {
+  return postCommand("/api/control/light", { action: "off" });
+}
+
+export function signalEmergencyStop() {
+  return postCommand("/api/control/emergency-stop");
 }
 
 export async function fetchVideoConfig() {
@@ -43,14 +73,6 @@ export async function fetchVideoConfig() {
     throw new Error("Failed to fetch video config");
   }
   return (await res.json()) as VideoConfig;
-}
-
-export async function fetchSystemStatus() {
-  const res = await fetch(`${API_BASE}/api/system/status`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch system status");
-  }
-  return (await res.json()) as SystemStatus;
 }
 
 export async function fetchCutConfig() {
