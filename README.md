@@ -139,15 +139,18 @@ The shared runtime config uses:
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
 CANMV_BAUDRATE=115200
-LIGHT_GPIO_PIN=2
-LIGHT_ACTIVE_HIGH=1
+LIGHT_GPIO_PIN=18
+LIGHT_LED_COUNT=16
+LIGHT_BRIGHTNESS=255
 ```
 
 Work light wiring:
 - `Red` -> `5V`
 - `Black` -> `GND`
 - `Yellow` -> `BCM GPIO18`
-- `LIGHT_ACTIVE_HIGH=1` means output high level turns the light on
+- `WS2812/WS2812B` style strips use the yellow wire as a serial data input
+- `LIGHT_LED_COUNT` should match the actual LED count on the strip
+- `LIGHT_BRIGHTNESS` uses the range `0-255`
 
 Enable Raspberry Pi hardware serial:
 
@@ -194,9 +197,9 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ```
 
 ## Notes
-- Work light output is now wired through backend GPIO control.
-- Backend reads `LIGHT_GPIO_PIN` and `LIGHT_ACTIVE_HIGH` from `systemd/bamboo.env`.
-- Current implementation uses `gpiozero.PWMOutputDevice` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
-- The current UI behavior is `开灯 = 100% PWM duty`, `关灯 = 0% PWM duty`.
+- Work light output is now driven as `WS2812` serial data from the backend.
+- Backend reads `LIGHT_GPIO_PIN`, `LIGHT_LED_COUNT`, and `LIGHT_BRIGHTNESS` from `systemd/bamboo.env`.
+- Current implementation uses `rpi_ws281x` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
+- The current UI behavior is `开灯 = 全部灯珠白色点亮`, `关灯 = 全灭`.
 - Frontend video is provided by backend WebRTC streaming.
 - `CanMV` CPU/KPU usage is shown when the CanMV payload includes `canmv_status`.

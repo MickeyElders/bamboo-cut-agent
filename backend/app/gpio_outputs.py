@@ -18,24 +18,39 @@ class _NoopDriver:
         return
 
 
-class _GpioZeroDriver:
-    def __init__(self, pin: int, active_high: bool) -> None:
-        from gpiozero import PWMOutputDevice  # type: ignore[import-not-found]
+class _Ws2812Driver:
+    def __init__(self, pin: int, led_count: int, brightness: int) -> None:
+        from rpi_ws281x import Color, PixelStrip  # type: ignore[import-not-found]
 
-        self._device = PWMOutputDevice(pin=pin, active_high=active_high, initial_value=0.0)
+        self._Color = Color
+        self._led_count = led_count
+        self._strip = PixelStrip(
+            num=led_count,
+            pin=pin,
+            freq_hz=800000,
+            dma=10,
+            invert=False,
+            brightness=max(0, min(brightness, 255)),
+            channel=0,
+        )
+        self._strip.begin()
+        self.write(False)
 
     def write(self, value: bool) -> None:
-        self._device.value = 1.0 if value else 0.0
+        color = self._Color(255, 255, 255) if value else self._Color(0, 0, 0)
+        for index in range(self._led_count):
+            self._strip.setPixelColor(index, color)
+        self._strip.show()
 
     def close(self) -> None:
-        self._device.value = 0.0
-        self._device.close()
+        self.write(False)
 
 
 class LightController:
     def __init__(self) -> None:
         self.pin = int(os.getenv("LIGHT_GPIO_PIN", "18"))
-        self.active_high = os.getenv("LIGHT_ACTIVE_HIGH", "1").lower() not in {"0", "false", "no"}
+        self.led_count = int(os.getenv("LIGHT_LED_COUNT", "16"))
+        self.brightness = int(os.getenv("LIGHT_BRIGHTNESS", "255"))
         self.available = False
         self._is_on = False
         self._driver: _OutputDriver = self._build_driver()
@@ -57,7 +72,7 @@ class LightController:
 
     def _build_driver(self) -> _OutputDriver:
         try:
-            driver = _GpioZeroDriver(self.pin, self.active_high)
+            driver = _Ws2812Driver(self.pin, self.led_count, self.brightness)
             self.available = True
             return driver
         except Exception:
