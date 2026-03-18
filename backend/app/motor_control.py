@@ -20,7 +20,7 @@ class MotorController:
         self._lock = asyncio.Lock()
         self._auto_task: asyncio.Task | None = None
         self._light = LightController()
-        self._status.light_on = self._light.is_on
+        self._status.light_on = self._light.reset()
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
         self._cut_hold_ms = int(os.getenv("CUT_HOLD_MS", "150"))
@@ -177,7 +177,11 @@ class MotorController:
     async def shutdown(self) -> None:
         async with self._lock:
             await self._cancel_auto_task_locked()
-            self._status.light_on = self._light.set_on(False)
+            self._status.feed_running = False
+            self._status.clamp_engaged = False
+            self._status.cutter_down = False
+            self._status.cut_request_active = False
+            self._status.light_on = self._light.reset()
             self._light.close()
 
     def _ensure_manual(self, cmd: str) -> None:

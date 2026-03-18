@@ -146,7 +146,7 @@ LIGHT_ACTIVE_HIGH=1
 Work light wiring:
 - `Red` -> `5V`
 - `Black` -> `GND`
-- `Yellow` -> `BCM GPIO2`
+- `Yellow` -> `BCM GPIO18`
 - `LIGHT_ACTIVE_HIGH=1` means output high level turns the light on
 
 Enable Raspberry Pi hardware serial:
