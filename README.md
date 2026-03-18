@@ -139,7 +139,14 @@ The shared runtime config uses:
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
 CANMV_BAUDRATE=115200
+LIGHT_GPIO_PIN=15
+LIGHT_ACTIVE_HIGH=1
 ```
+
+Warning:
+- `GPIO15` is the Raspberry Pi `RXD` pin for `/dev/serial0`.
+- If you are still using `UART over GPIO` for `CanMV -> Raspberry Pi`, do not drive the work light from `GPIO15` at the same time.
+- In that case, move the light output to another BCM GPIO, or disable the hardware serial path first.
 
 Enable Raspberry Pi hardware serial:
 
@@ -186,7 +193,8 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ```
 
 ## Notes
-- Motor I/O is currently mocked in `backend/app/motor_control.py`.
-- Replace with GPIO/relay driver logic on Raspberry Pi.
+- Work light output is now wired through backend GPIO control.
+- Backend reads `LIGHT_GPIO_PIN` and `LIGHT_ACTIVE_HIGH` from `systemd/bamboo.env`.
+- Current implementation uses `gpiozero` when available and degrades to a no-op driver on non-Raspberry Pi development machines.
 - Frontend video is provided by backend WebRTC streaming.
 - `CanMV` CPU/KPU usage is shown when the CanMV payload includes `canmv_status`.

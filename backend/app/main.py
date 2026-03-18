@@ -55,6 +55,7 @@ async def startup() -> None:
 @app.on_event("shutdown")
 async def shutdown() -> None:
     await canmv_bridge.stop()
+    await motor.shutdown()
     await video.shutdown()
 
 

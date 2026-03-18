@@ -16,6 +16,7 @@ const EMPTY_STATUS: MotorStatus = {
   feed_running: false,
   clamp_engaged: false,
   cutter_down: false,
+  light_on: false,
   cut_request_active: false,
   auto_state: "manual_ready",
   cycle_count: 0,
@@ -103,7 +104,7 @@ function formatPercent(value?: number | null) {
 }
 
 function formatTemp(value?: number | null) {
-  return value == null ? "-" : `${value.toFixed(1)} C`;
+  return value == null ? "-" : `${value.toFixed(1)} 摄氏度`;
 }
 
 function formatSeconds(value?: number | null) {
@@ -121,26 +122,26 @@ function formatRatio(value: number) {
 
 function deriveRunState(motor: MotorStatus, frame: AiFrame, videoConnected: boolean) {
   if (!videoConnected) {
-    return { code: "video-offline", label: "Video Offline", detail: "Waiting for video stream and machine telemetry." };
+    return { code: "video-offline", label: "视频离线", detail: "正在等待视频流和设备遥测数据。" };
   }
   if (motor.auto_state === "cutting" || motor.cutter_down) {
-    return { code: "cutting", label: "Cutting", detail: "Blade is in the down-cut position." };
+    return { code: "cutting", label: "切割中", detail: "刀片当前处于下压切割位置。" };
   }
   if (motor.auto_state === "clamping" || motor.auto_state === "position_reached" || motor.cut_request_active || frame.cut_request) {
-    return { code: "position-ready", label: "At Cut Position", detail: "CanMV reports the bamboo segment has reached the cut line." };
+    return { code: "position-ready", label: "到达切割位", detail: "CanMV 已报告当前竹段到达切割线位置。" };
   }
   if (motor.feed_running) {
-    return { code: "feeding", label: "Feeding", detail: "Conveyor is advancing bamboo toward the blade station." };
+    return { code: "feeding", label: "送料中", detail: "传送带正在将竹料送往切割工位。" };
   }
   if (motor.mode === "auto") {
-    return { code: "auto-standby", label: "Auto Standby", detail: "Automatic cycle armed, waiting for the next bamboo segment." };
+    return { code: "auto-standby", label: "自动待机", detail: "自动流程已就绪，等待下一段竹料进入。" };
   }
-  return { code: "manual-ready", label: "Manual Ready", detail: "Manual commissioning mode, machine awaiting operator commands." };
+  return { code: "manual-ready", label: "手动待命", detail: "当前为手动调试模式，等待操作指令。" };
 }
 
 function deriveClampState(motor: MotorStatus) {
-  if (motor.clamp_engaged) return motor.cutter_down ? "Clamped" : "Engaged";
-  return "Released";
+  if (motor.clamp_engaged) return motor.cutter_down ? "已夹紧" : "已压紧";
+  return "已释放";
 }
 
 export default function App() {
@@ -165,7 +166,7 @@ export default function App() {
   const runState = useMemo(() => deriveRunState(motor, aiFrame, videoConnected), [motor, aiFrame, videoConnected]);
   const clampState = useMemo(() => deriveClampState(motor), [motor]);
 
-  const connectionState = useMemo(() => (wsConnected ? "online" : "offline"), [wsConnected]);
+  const connectionState = useMemo(() => (wsConnected ? "在线" : "离线"), [wsConnected]);
 
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
@@ -177,11 +178,11 @@ export default function App() {
       .then((config) => {
         setVideoConfig(config);
         if (!config.enabled) {
-          setVideoError(config.detail || "Video backend unavailable");
+          setVideoError(config.detail || "视频后端不可用");
         }
       })
       .catch(() => {
-        setVideoError("Failed to fetch video config");
+        setVideoError("获取视频配置失败");
       });
     fetchCutConfig()
       .then((config) => {
@@ -189,7 +190,7 @@ export default function App() {
         setCutDirty(false);
       })
       .catch(() => {
-        setCutError("Failed to fetch cut config");
+        setCutError("获取切割位配置失败");
       });
   }, []);
 
@@ -229,7 +230,7 @@ export default function App() {
         }
       } catch {
         if (!cancelled) {
-          setVideoError((prev) => prev || "Failed to fetch system status");
+          setVideoError((prev) => prev || "获取系统状态失败");
         }
       }
     }
@@ -308,7 +309,7 @@ export default function App() {
       if (videoRef.current) {
         videoRef.current.srcObject = event.streams[0];
         void videoRef.current.play().catch(() => {
-          setVideoError("Video play failed");
+          setVideoError("视频播放失败");
         });
         videoRef.current.onloadedmetadata = () => {
           const canvas = canvasRef.current;
@@ -342,10 +343,10 @@ export default function App() {
         } else if (msg.type === "ice" && msg.candidate) {
           await peer.addIceCandidate({ candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex ?? 0 });
         } else if (msg.type === "error") {
-          setVideoError(msg.detail ?? "Video backend error");
+          setVideoError(msg.detail ?? "视频后端错误");
         }
       } catch {
-        setVideoError("WebRTC negotiation failed");
+        setVideoError("WebRTC 协商失败");
       }
     };
 
@@ -355,7 +356,7 @@ export default function App() {
     };
 
     ws.onerror = () => {
-      setVideoError("Video signaling failed");
+      setVideoError("视频信令连接失败");
     };
 
     peer.onicecandidate = (event) => {
@@ -381,7 +382,18 @@ export default function App() {
   }
 
   async function handleMotorCommand(
-    cmd: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "clamp_engage" | "clamp_release" | "cutter_down" | "cutter_up" | "emergency_stop"
+    cmd:
+      | "mode_manual"
+      | "mode_auto"
+      | "feed_start"
+      | "feed_stop"
+      | "clamp_engage"
+      | "clamp_release"
+      | "cutter_down"
+      | "cutter_up"
+      | "light_on"
+      | "light_off"
+      | "emergency_stop"
   ) {
     const status = await sendMotorCommand(cmd);
     setMotor(status);
@@ -395,7 +407,7 @@ export default function App() {
       setCutConfig(saved);
       setCutDirty(false);
     } catch {
-      setCutError("Failed to save cut config");
+      setCutError("保存切割位配置失败");
     } finally {
       setCutSaving(false);
     }
@@ -410,8 +422,8 @@ export default function App() {
     <main className="app">
       <section className="panel vision-panel">
         <div className="header">
-          <h2>Vision</h2>
-          <span className={`badge ${connectionState === "online" ? "ok" : "warn"}`}>{connectionState}</span>
+          <h2>视觉画面</h2>
+          <span className={`badge ${connectionState === "在线" ? "ok" : "warn"}`}>{connectionState}</span>
         </div>
         <div className="video-wrap hero-video">
           <video ref={videoRef} autoPlay playsInline muted />
@@ -425,31 +437,31 @@ export default function App() {
           <div className="process-strip">
             <div className={`process-step ${motor.feed_running ? "active" : ""}`}>
               <span className="step-index">01</span>
-              <span className="step-name">Feed Conveyor</span>
-              <strong>{motor.feed_running ? "Running" : "Stopped"}</strong>
+              <span className="step-name">送料传送带</span>
+              <strong>{motor.feed_running ? "运行中" : "已停止"}</strong>
             </div>
             <div className={`process-step ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>
               <span className="step-index">02</span>
-              <span className="step-name">Cut Position</span>
-              <strong>{motor.cut_request_active || aiFrame.cut_request ? "Reached" : "Tracking"}</strong>
+              <span className="step-name">切割位置</span>
+              <strong>{motor.cut_request_active || aiFrame.cut_request ? "已到位" : "检测中"}</strong>
             </div>
             <div className={`process-step ${motor.clamp_engaged ? "active" : ""}`}>
               <span className="step-index">03</span>
-              <span className="step-name">Clamp Cylinder</span>
+              <span className="step-name">压紧机构</span>
               <strong>{clampState}</strong>
             </div>
             <div className={`process-step ${motor.cutter_down ? "active" : ""}`}>
               <span className="step-index">04</span>
-              <span className="step-name">Blade Motor</span>
-              <strong>{motor.cutter_down ? "Down" : "Ready"}</strong>
+              <span className="step-name">切刀机构</span>
+              <strong>{motor.cutter_down ? "下压中" : "待命"}</strong>
             </div>
           </div>
-          <div className="spec-line">Source <strong>{videoConfig.device}</strong></div>
-          <div className="spec-line">Mode <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
-          <div className="spec-line">Cut Request <strong>{motor.cut_request_active || aiFrame.cut_request ? "Triggered" : "Idle"}</strong></div>
+          <div className="spec-line">视频源 <strong>{videoConfig.device}</strong></div>
+          <div className="spec-line">视频模式 <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}</strong></div>
+          <div className="spec-line">切割触发 <strong>{motor.cut_request_active || aiFrame.cut_request ? "已触发" : "空闲"}</strong></div>
           <div className="action-row">
-            <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>Reconnect Video</button>
-            <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>Stop Video</button>
+            <button className="primary" onClick={startVideo} disabled={videoConnected || !videoConfig.enabled}>重连视频</button>
+            <button onClick={stopVideo} disabled={!videoConnected && !signalRef.current}>停止视频</button>
           </div>
           {videoError ? <div className="error-text">{videoError}</div> : null}
         </div>
@@ -458,34 +470,34 @@ export default function App() {
       <aside className="sidebar">
         <section className="panel side-panel">
           <div className="header">
-            <h2>Raspberry Pi</h2>
+            <h2>树莓派</h2>
             <span className="badge ok">{systemStatus.raspberry_pi.hostname}</span>
           </div>
           <div className="stat"><span>CPU</span><strong>{formatPercent(systemStatus.raspberry_pi.cpu_percent)}</strong></div>
-          <div className="stat"><span>Memory</span><strong>{formatPercent(systemStatus.raspberry_pi.memory_percent)}</strong></div>
-          <div className="stat"><span>Uptime</span><strong>{formatSeconds(systemStatus.raspberry_pi.uptime_seconds)}</strong></div>
+          <div className="stat"><span>内存</span><strong>{formatPercent(systemStatus.raspberry_pi.memory_percent)}</strong></div>
+          <div className="stat"><span>运行时长</span><strong>{formatSeconds(systemStatus.raspberry_pi.uptime_seconds)}</strong></div>
         </section>
 
         <section className="panel side-panel">
           <div className="header">
             <h2>CanMV</h2>
-            <span className={`badge ${systemStatus.canmv_connected ? "ok" : "warn"}`}>{systemStatus.canmv_connected ? "online" : "offline"}</span>
+            <span className={`badge ${systemStatus.canmv_connected ? "ok" : "warn"}`}>{systemStatus.canmv_connected ? "在线" : "离线"}</span>
           </div>
           <div className="stat"><span>CPU</span><strong>{formatPercent(systemStatus.canmv_status?.cpu_percent)}</strong></div>
           <div className="stat"><span>KPU</span><strong>{formatPercent(systemStatus.canmv_status?.kpu_percent)}</strong></div>
-          <div className="stat"><span>Memory</span><strong>{formatPercent(systemStatus.canmv_status?.memory_percent)}</strong></div>
-          <div className="stat"><span>Temp</span><strong>{formatTemp(systemStatus.canmv_status?.temperature_c)}</strong></div>
+          <div className="stat"><span>内存</span><strong>{formatPercent(systemStatus.canmv_status?.memory_percent)}</strong></div>
+          <div className="stat"><span>温度</span><strong>{formatTemp(systemStatus.canmv_status?.temperature_c)}</strong></div>
           <div className="stat"><span>FPS</span><strong>{systemStatus.canmv_fps?.toFixed(1) ?? "-"}</strong></div>
-          <div className="stat"><span>Last Seen</span><strong>{formatSeconds(systemStatus.canmv_last_seen_seconds)}</strong></div>
+          <div className="stat"><span>最近上报</span><strong>{formatSeconds(systemStatus.canmv_last_seen_seconds)}</strong></div>
         </section>
 
         <section className="panel side-panel">
           <div className="header">
-            <h2>Cut Line</h2>
-            <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "pending" : "applied"}</span>
+            <h2>切割位设置</h2>
+            <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "待应用" : "已应用"}</span>
           </div>
           <label className="toggle-row">
-            <span>Show Guide</span>
+            <span>显示辅助线</span>
             <input
               type="checkbox"
               checked={cutConfig.show_guide}
@@ -494,7 +506,7 @@ export default function App() {
           </label>
           <div className="slider-block">
             <div className="slider-head">
-              <span>Line Position</span>
+              <span>切割线位置</span>
               <strong>{formatRatio(cutConfig.line_ratio_x)}</strong>
             </div>
             <input
@@ -509,7 +521,7 @@ export default function App() {
           </div>
           <div className="slider-block">
             <div className="slider-head">
-              <span>Trigger Band</span>
+              <span>触发容差带</span>
               <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
             </div>
             <input
@@ -522,18 +534,18 @@ export default function App() {
               onChange={(event) => updateCutConfig("tolerance_ratio_x", Number(event.target.value))}
             />
           </div>
-          <div className="stat"><span>Min Hits</span><strong>{cutConfig.min_hits}</strong></div>
-          <div className="stat"><span>Hold</span><strong>{cutConfig.hold_ms} ms</strong></div>
+          <div className="stat"><span>最少命中次数</span><strong>{cutConfig.min_hits}</strong></div>
+          <div className="stat"><span>保持时间</span><strong>{cutConfig.hold_ms} ms</strong></div>
           <button className="primary wide" onClick={() => void handleSaveCutConfig()} disabled={cutSaving}>
-            {cutSaving ? "Saving..." : "Apply To CanMV"}
+            {cutSaving ? "保存中..." : "应用到 CanMV"}
           </button>
           {cutError ? <div className="error-text">{cutError}</div> : null}
         </section>
 
         <section className="panel side-panel">
           <div className="header">
-            <h2>Cutting Cell</h2>
-            <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "streaming" : "idle"}</span>
+            <h2>切割工位</h2>
+            <span className={`badge ${videoConnected ? "ok" : "warn"}`}>{videoConnected ? "视频中" : "空闲"}</span>
           </div>
           <div className="mode-row">
             <button
@@ -541,49 +553,52 @@ export default function App() {
               onClick={() => void handleMotorCommand("mode_manual")}
               disabled={manualMode}
             >
-              Manual
+              手动
             </button>
             <button
               className={!manualMode ? "primary mode-button" : "mode-button"}
               onClick={() => void handleMotorCommand("mode_auto")}
               disabled={!manualMode}
             >
-              Auto
+              自动
             </button>
           </div>
           <div className="machine-schema">
             <div className={`schema-node ${motor.feed_running ? "active" : ""}`}>
-              <span>Conveyor</span>
-              <strong>{motor.feed_running ? "Feeding" : "Stopped"}</strong>
+              <span>传送带</span>
+              <strong>{motor.feed_running ? "送料中" : "已停止"}</strong>
             </div>
             <div className={`schema-link ${motor.cut_request_active || aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
             <div className={`schema-node ${motor.clamp_engaged ? "active" : ""}`}>
-              <span>Clamp Cylinder</span>
+              <span>压紧机构</span>
               <strong>{clampState}</strong>
             </div>
             <div className={`schema-link ${motor.cutter_down ? "active" : ""}`}>{">"}</div>
             <div className={`schema-node ${motor.cutter_down ? "active" : ""}`}>
-              <span>Blade Motor</span>
-              <strong>{motor.cutter_down ? "Cutting" : "Ready"}</strong>
+              <span>切刀机构</span>
+              <strong>{motor.cutter_down ? "切割中" : "待命"}</strong>
             </div>
           </div>
-          <div className="stat"><span>Runtime State</span><strong>{runState.label}</strong></div>
-          <div className="stat"><span>Auto Step</span><strong>{motor.auto_state}</strong></div>
-          <div className="stat"><span>Mode</span><strong>{manualMode ? "Manual" : "Auto"}</strong></div>
-          <div className="stat"><span>Feed Conveyor</span><strong>{motor.feed_running ? "Running" : "Stopped"}</strong></div>
-          <div className="stat"><span>Clamp Cylinder</span><strong>{clampState}</strong></div>
-          <div className="stat"><span>Blade Motor</span><strong>{motor.cutter_down ? "Down" : "Up"}</strong></div>
-          <div className="stat"><span>Cycle Count</span><strong>{motor.cycle_count}</strong></div>
-          <div className="stat"><span>Last Action</span><strong>{motor.last_action}</strong></div>
-          <div className="stat"><span>Detections</span><strong>{aiFrame.detections.length}</strong></div>
+          <div className="stat"><span>当前状态</span><strong>{runState.label}</strong></div>
+          <div className="stat"><span>自动流程步骤</span><strong>{motor.auto_state}</strong></div>
+          <div className="stat"><span>模式</span><strong>{manualMode ? "手动" : "自动"}</strong></div>
+          <div className="stat"><span>送料传送带</span><strong>{motor.feed_running ? "运行中" : "已停止"}</strong></div>
+          <div className="stat"><span>压紧机构</span><strong>{clampState}</strong></div>
+          <div className="stat"><span>切刀机构</span><strong>{motor.cutter_down ? "下压" : "抬起"}</strong></div>
+          <div className="stat"><span>工作灯</span><strong>{motor.light_on ? "开启" : "关闭"}</strong></div>
+          <div className="stat"><span>循环次数</span><strong>{motor.cycle_count}</strong></div>
+          <div className="stat"><span>最后动作</span><strong>{motor.last_action}</strong></div>
+          <div className="stat"><span>识别目标数</span><strong>{aiFrame.detections.length}</strong></div>
           <div className="controls controls-single">
-            <button className="primary" onClick={() => void handleMotorCommand("feed_start")} disabled={!manualMode}>Feed Start</button>
-            <button onClick={() => void handleMotorCommand("feed_stop")} disabled={!manualMode}>Feed Stop</button>
-            <button className="primary" onClick={() => void handleMotorCommand("clamp_engage")} disabled={!manualMode}>Clamp Engage</button>
-            <button onClick={() => void handleMotorCommand("clamp_release")} disabled={!manualMode}>Clamp Release</button>
-            <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>Cutter Down</button>
-            <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>Cutter Up</button>
-            <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>Emergency Stop</button>
+            <button className="primary" onClick={() => void handleMotorCommand("feed_start")} disabled={!manualMode}>启动送料</button>
+            <button onClick={() => void handleMotorCommand("feed_stop")} disabled={!manualMode}>停止送料</button>
+            <button className="primary" onClick={() => void handleMotorCommand("clamp_engage")} disabled={!manualMode}>压紧夹持</button>
+            <button onClick={() => void handleMotorCommand("clamp_release")} disabled={!manualMode}>释放夹持</button>
+            <button className="primary" onClick={() => void handleMotorCommand("cutter_down")} disabled={!manualMode}>切刀下压</button>
+            <button onClick={() => void handleMotorCommand("cutter_up")} disabled={!manualMode}>切刀抬起</button>
+            <button className="primary" onClick={() => void handleMotorCommand("light_on")} disabled={!manualMode || motor.light_on}>开灯</button>
+            <button onClick={() => void handleMotorCommand("light_off")} disabled={!manualMode || !motor.light_on}>关灯</button>
+            <button className="danger" onClick={() => void handleMotorCommand("emergency_stop")}>急停</button>
           </div>
         </section>
       </aside>

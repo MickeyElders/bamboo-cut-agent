@@ -3,7 +3,18 @@ import type { CutConfig, MotorStatus, SystemStatus, VideoConfig } from "./types"
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 export async function sendMotorCommand(
-  command: "mode_manual" | "mode_auto" | "feed_start" | "feed_stop" | "clamp_engage" | "clamp_release" | "cutter_down" | "cutter_up" | "emergency_stop"
+  command:
+    | "mode_manual"
+    | "mode_auto"
+    | "feed_start"
+    | "feed_stop"
+    | "clamp_engage"
+    | "clamp_release"
+    | "cutter_down"
+    | "cutter_up"
+    | "light_on"
+    | "light_off"
+    | "emergency_stop"
 ) {
   const res = await fetch(`${API_BASE}/api/motor/command`, {
     method: "POST",

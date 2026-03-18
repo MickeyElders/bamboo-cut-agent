@@ -36,6 +36,7 @@ class MotorStatus(BaseModel):
     feed_running: bool = False
     clamp_engaged: bool = False
     cutter_down: bool = False
+    light_on: bool = False
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0

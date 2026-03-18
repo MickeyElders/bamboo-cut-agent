@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import os
 
+from .gpio_outputs import LightController
 from .models import AiFrame, MotorStatus
 
 
@@ -18,6 +19,8 @@ class MotorController:
         self._status = MotorStatus()
         self._lock = asyncio.Lock()
         self._auto_task: asyncio.Task | None = None
+        self._light = LightController()
+        self._status.light_on = self._light.is_on
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
         self._cut_hold_ms = int(os.getenv("CUT_HOLD_MS", "150"))
@@ -65,6 +68,10 @@ class MotorController:
             elif cmd == "cutter_up":
                 self._ensure_manual(cmd)
                 self._status.cutter_down = False
+            elif cmd == "light_on":
+                self._status.light_on = self._light.set_on(True)
+            elif cmd == "light_off":
+                self._status.light_on = self._light.set_on(False)
             elif cmd == "emergency_stop":
                 await self._cancel_auto_task_locked()
                 self._status.feed_running = False
@@ -166,6 +173,12 @@ class MotorController:
         if value <= 0:
             return
         await asyncio.sleep(value / 1000.0)
+
+    async def shutdown(self) -> None:
+        async with self._lock:
+            await self._cancel_auto_task_locked()
+            self._status.light_on = self._light.set_on(False)
+            self._light.close()
 
     def _ensure_manual(self, cmd: str) -> None:
         if self._status.mode != "manual":

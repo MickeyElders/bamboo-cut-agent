@@ -21,6 +21,7 @@ export type MotorStatus = {
   feed_running: boolean;
   clamp_engaged: boolean;
   cutter_down: boolean;
+  light_on: boolean;
   cut_request_active: boolean;
   auto_state: string;
   cycle_count: number;
