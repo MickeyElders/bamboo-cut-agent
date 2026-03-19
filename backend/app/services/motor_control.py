@@ -114,7 +114,6 @@ class MotorController:
                 self._status.light_on = self._light.set_on(False)
                 self._status.light_active_leds = 0
             elif cmd == "light_set_count":
-                self._ensure_manual(cmd)
                 if value is None:
                     raise ValueError("Command requires value: light_set_count")
                 self._status.light_active_leds = self._light.write_count(value)
@@ -144,7 +143,6 @@ class MotorController:
 
     async def configure_light(self, *, active_leds: int, brightness: int, red: int, green: int, blue: int) -> dict[str, object]:
         async with self._lock:
-            self._ensure_manual("light_config")
             self._status.light_active_leds = self._light.configure(active_leds, brightness, red, green, blue)
             self._status.light_on = self._status.light_active_leds > 0
             self._status.light_available = self._light.available

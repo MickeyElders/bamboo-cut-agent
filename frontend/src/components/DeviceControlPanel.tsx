@@ -11,10 +11,6 @@ type DeviceControlPanelProps = {
   lightBrightness: number;
   lightColor: string;
   lightSummary: string;
-  onOpenLightSettings: () => void;
-  onOpenManual: () => void;
-  onSetAuto: () => void;
-  onEmergencyStop: () => void;
 };
 
 export function DeviceControlPanel(props: DeviceControlPanelProps) {
@@ -26,17 +22,13 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
     lightCount,
     lightBrightness,
     lightColor,
-    lightSummary,
-    onOpenLightSettings,
-    onOpenManual,
-    onSetAuto,
-    onEmergencyStop
+    lightSummary
   } = props;
 
   return (
     <section className="panel side-panel">
       <div className="header">
-        <h2>设备控制</h2>
+        <h2>运行概览</h2>
         <span className={`badge ${manualMode ? "warn" : "ok"}`}>{manualMode ? "手动调试" : "自动运行"}</span>
       </div>
 
@@ -87,42 +79,6 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
       <div className="summary-card summary-card-info">
         <span>灯光</span>
         <strong>{lightSummary}</strong>
-      </div>
-
-      <div className="config-entry config-entry-info" onClick={onOpenLightSettings} role="button" tabIndex={0}>
-        <div className="config-entry-copy">
-          <span className="config-entry-kicker">配置</span>
-          <strong>灯光设置</strong>
-          <p>亮度、颜色与点亮数量。</p>
-        </div>
-        <div className="config-entry-action">
-          <span className="config-entry-label">设置</span>
-        </div>
-      </div>
-
-      <div
-        className={`config-entry config-entry-warning ${manualMode ? "is-active" : ""}`}
-        onClick={onOpenManual}
-        role="button"
-        tabIndex={0}
-      >
-        <div className="config-entry-copy">
-          <span className="config-entry-kicker">调试</span>
-          <strong>{manualMode ? "手动调试" : "进入手动"}</strong>
-          <p>{manualMode ? "当前为手动模式。" : "安装与联调用。进入前会二次确认。"}</p>
-        </div>
-        <div className="config-entry-action">
-          <span className="config-entry-label">{manualMode ? "继续" : "进入"}</span>
-        </div>
-      </div>
-
-      <div className="controls controls-single">
-        <button onClick={onSetAuto} disabled={!manualMode}>
-          回到自动
-        </button>
-        <button className="danger" onClick={onEmergencyStop}>
-          急停
-        </button>
       </div>
     </section>
   );

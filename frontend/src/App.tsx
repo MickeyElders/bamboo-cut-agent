@@ -411,6 +411,11 @@ export default function App() {
           lightCount={lightCount}
           videoConfig={videoConfig}
           videoError={videoError}
+          onOpenCutSettings={() => setCutModalOpen(true)}
+          onOpenLightSettings={() => setLightModalOpen(true)}
+          onOpenManual={handleRequestManualMode}
+          onSetAuto={handleReturnAutoMode}
+          onEmergencyStop={() => void runControl(signalEmergencyStop)}
         />
 
         <aside className="sidebar">
@@ -460,10 +465,6 @@ export default function App() {
             lightBrightness={lightBrightness}
             lightColor={lightColor}
             lightSummary={lightSummary}
-            onOpenLightSettings={() => setLightModalOpen(true)}
-            onOpenManual={handleRequestManualMode}
-            onSetAuto={handleReturnAutoMode}
-            onEmergencyStop={() => void runControl(signalEmergencyStop)}
           />
         </aside>
       </main>

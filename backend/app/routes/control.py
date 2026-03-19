@@ -48,26 +48,29 @@ async def control_cutter(req: ActionControlRequest) -> CommandAck:
 
 @router.post("/api/control/light", response_model=CommandAck)
 async def control_light(req: LightControlRequest) -> CommandAck:
-    if req.action == "off":
-        return await runtime.execute_control("light_off")
-    if req.action == "set_count":
-        return await runtime.execute_control("light_set_count", req.value)
-    if req.action == "configure":
-        if req.value is None:
-            raise HTTPException(status_code=400, detail="Light count is required")
-        if req.brightness is None:
-            raise HTTPException(status_code=400, detail="Light brightness is required")
-        if req.red is None or req.green is None or req.blue is None:
-            raise HTTPException(status_code=400, detail="Light color is required")
-        await runtime.motor.configure_light(
-            active_leds=req.value,
-            brightness=req.brightness,
-            red=req.red,
-            green=req.green,
-            blue=req.blue,
-        )
-        return CommandAck(command="light_config", value=req.value, timestamp=time.time())
-    raise HTTPException(status_code=400, detail=f"Unsupported light action: {req.action}")
+    try:
+        if req.action == "off":
+            return await runtime.execute_control("light_off")
+        if req.action == "set_count":
+            return await runtime.execute_control("light_set_count", req.value)
+        if req.action == "configure":
+            if req.value is None:
+                raise HTTPException(status_code=400, detail="Light count is required")
+            if req.brightness is None:
+                raise HTTPException(status_code=400, detail="Light brightness is required")
+            if req.red is None or req.green is None or req.blue is None:
+                raise HTTPException(status_code=400, detail="Light color is required")
+            await runtime.motor.configure_light(
+                active_leds=req.value,
+                brightness=req.brightness,
+                red=req.red,
+                green=req.green,
+                blue=req.blue,
+            )
+            return CommandAck(command="light_config", value=req.value, timestamp=time.time())
+        raise HTTPException(status_code=400, detail=f"Unsupported light action: {req.action}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/control/emergency-stop", response_model=CommandAck)

@@ -12,10 +12,30 @@ type VisionPanelProps = {
   lightCount: number;
   videoConfig: VideoConfig;
   videoError: string;
+  onOpenCutSettings: () => void;
+  onOpenLightSettings: () => void;
+  onOpenManual: () => void;
+  onSetAuto: () => void;
+  onEmergencyStop: () => void;
 };
 
 export function VisionPanel(props: VisionPanelProps) {
-  const { connectionState, videoRef, canvasRef, runState, aiFrame, manualMode, lightCount, videoConfig, videoError } = props;
+  const {
+    connectionState,
+    videoRef,
+    canvasRef,
+    runState,
+    aiFrame,
+    manualMode,
+    lightCount,
+    videoConfig,
+    videoError,
+    onOpenCutSettings,
+    onOpenLightSettings,
+    onOpenManual,
+    onSetAuto,
+    onEmergencyStop
+  } = props;
 
   return (
     <section className="panel vision-panel">
@@ -59,10 +79,6 @@ export function VisionPanel(props: VisionPanelProps) {
         </div>
 
         <div className="spec-line">
-          <span>视频源</span>
-          <strong>{videoConfig.device}</strong>
-        </div>
-        <div className="spec-line">
           <span>模式</span>
           <strong>
             {videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}
@@ -75,6 +91,24 @@ export function VisionPanel(props: VisionPanelProps) {
         <div className="spec-line">
           <span>目标数</span>
           <strong>{aiFrame.detections.length}</strong>
+        </div>
+
+        <div className="vision-control-strip">
+          <button className="surface-button" onClick={onOpenCutSettings}>
+            切割位设置
+          </button>
+          <button className="surface-button" onClick={onOpenLightSettings}>
+            灯光设置
+          </button>
+          <button className={manualMode ? "surface-button warning" : "surface-button"} onClick={onOpenManual}>
+            {manualMode ? "手动调试中" : "手动调试"}
+          </button>
+          <button className="surface-button" onClick={onSetAuto} disabled={!manualMode}>
+            回到自动
+          </button>
+          <button className="surface-button danger" onClick={onEmergencyStop}>
+            急停
+          </button>
         </div>
         {videoError ? <div className="error-text">{videoError}</div> : null}
       </div>

@@ -216,6 +216,13 @@ video {
   min-height: 0;
 }
 
+.vision-control-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 2px;
+}
+
 .run-banner {
   display: grid;
   gap: 5px;
@@ -312,6 +319,35 @@ video {
 .spec-line strong {
   color: var(--text);
   font-family: "SF Mono", "Consolas", "Courier New", monospace;
+}
+
+.surface-button {
+  min-height: 52px;
+  border: 1px solid rgba(73, 93, 117, 0.1);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(247, 250, 255, 0.5));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 10px 20px rgba(46, 65, 86, 0.06);
+  font-size: 0.8rem;
+  font-weight: 620;
+  letter-spacing: 0;
+}
+
+.surface-button:hover:not(:disabled) {
+  border-color: rgba(47, 124, 246, 0.2);
+}
+
+.surface-button.warning {
+  background: linear-gradient(180deg, rgba(255, 247, 231, 0.96), rgba(255, 251, 244, 0.8));
+  color: #8b6413;
+  border-color: rgba(210, 155, 45, 0.16);
+}
+
+.surface-button.danger {
+  background: linear-gradient(180deg, #ea6666 0%, #d74444 100%);
+  color: #fff;
+  border-color: rgba(215, 68, 68, 0.2);
 }
 
 .mode-row {
@@ -856,6 +892,7 @@ button:disabled {
 
   .summary-grid,
   .process-strip,
+  .vision-control-strip,
   .preset-row,
   .modal-actions {
     grid-template-columns: 1fr;
