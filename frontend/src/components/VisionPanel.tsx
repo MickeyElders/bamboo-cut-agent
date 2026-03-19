@@ -50,9 +50,9 @@ export function VisionPanel(props: VisionPanelProps) {
       </div>
 
       <div className="vision-footer">
-        <div className={`run-banner run-${runState.code}`}>
-          <div className="run-banner-title">{runState.label}</div>
-          <div className="run-banner-detail">{runState.detail}</div>
+        <div className={`run-inline-bar run-${runState.code}`}>
+          <span className="run-inline-label">{runState.label}</span>
+          <span className="run-inline-detail">{runState.detail}</span>
         </div>
 
         <div className="process-strip">
@@ -71,15 +71,6 @@ export function VisionPanel(props: VisionPanelProps) {
             <span className="step-name">灯光</span>
             <strong>{lightCount} / 16</strong>
           </div>
-        </div>
-
-        <div className="spec-line">
-          <span>目标数</span>
-          <strong>{aiFrame.detections.length}</strong>
-        </div>
-        <div className="spec-line">
-          <span>视频</span>
-          <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps}</strong>
         </div>
 
         <div className="vision-control-strip">
