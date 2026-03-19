@@ -10,7 +10,7 @@ export function PiStatusPanel({ status }: PiStatusPanelProps) {
   return (
     <section className="panel side-panel">
       <div className="header">
-        <h2>树莓派状态</h2>
+        <h2>树莓派</h2>
         <span className="badge ok">{status.hostname}</span>
       </div>
 

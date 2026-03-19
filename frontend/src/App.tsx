@@ -434,13 +434,20 @@ export default function App() {
             />
 
             <div className="summary-card summary-card-warning">
-              <span>当前摘要</span>
+              <span>切割位</span>
               <strong>{cutSummary}</strong>
             </div>
 
-            <button className="primary wide" onClick={() => setCutModalOpen(true)}>
-              设置切割位
-            </button>
+            <div className="config-entry config-entry-warning" onClick={() => setCutModalOpen(true)} role="button" tabIndex={0}>
+              <div className="config-entry-copy">
+                <span className="config-entry-kicker">配置</span>
+                <strong>切割位设置</strong>
+                <p>位置、容差与触发条件。</p>
+              </div>
+              <div className="config-entry-action">
+                <span className="config-entry-label">设置</span>
+              </div>
+            </div>
             {cutError ? <div className="error-text">{cutError}</div> : null}
           </section>
 
@@ -453,6 +460,7 @@ export default function App() {
             lightBrightness={lightBrightness}
             lightColor={lightColor}
             lightSummary={lightSummary}
+            onOpenLightSettings={() => setLightModalOpen(true)}
             onOpenManual={handleRequestManualMode}
             onSetAuto={handleReturnAutoMode}
             onEmergencyStop={() => void runControl(signalEmergencyStop)}

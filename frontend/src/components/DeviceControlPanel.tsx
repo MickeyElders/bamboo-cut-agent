@@ -11,6 +11,7 @@ type DeviceControlPanelProps = {
   lightBrightness: number;
   lightColor: string;
   lightSummary: string;
+  onOpenLightSettings: () => void;
   onOpenManual: () => void;
   onSetAuto: () => void;
   onEmergencyStop: () => void;
@@ -26,6 +27,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
     lightBrightness,
     lightColor,
     lightSummary,
+    onOpenLightSettings,
     onOpenManual,
     onSetAuto,
     onEmergencyStop
@@ -40,17 +42,17 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <div className="machine-schema">
         <div className={`schema-node ${aiFrame.detections.length > 0 ? "active" : ""}`}>
-          <span>视觉识别</span>
-          <strong>{aiFrame.detections.length > 0 ? "运行中" : "等待中"}</strong>
+          <span>识别</span>
+          <strong>{aiFrame.detections.length > 0 ? "运行中" : "待机"}</strong>
         </div>
         <div className={`schema-link ${aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
         <div className={`schema-node ${aiFrame.cut_request ? "active" : ""}`}>
-          <span>到位信号</span>
-          <strong>{aiFrame.cut_request ? "已到位" : "未到位"}</strong>
+          <span>切割位</span>
+          <strong>{aiFrame.cut_request ? "到位" : "监测中"}</strong>
         </div>
         <div className={`schema-link ${videoConnected ? "active" : ""}`}>{">"}</div>
         <div className={`schema-node ${!manualMode ? "active" : ""}`}>
-          <span>运行模式</span>
+          <span>模式</span>
           <strong>{manualMode ? "手动" : "自动"}</strong>
         </div>
       </div>
@@ -58,17 +60,17 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
       <SummaryTileGrid
         tone="success"
         items={[
-          { label: "运行状态", value: runState.label, tone: aiFrame.cut_request ? "danger" : "success" },
-          { label: "检测框数量", value: aiFrame.detections.length },
-          { label: "切割信号", value: aiFrame.cut_request ? "触发" : "未触发" },
-          { label: "视频链路", value: videoConnected ? "正常" : "断开", tone: videoConnected ? "success" : "warning" }
+          { label: "状态", value: runState.label, tone: aiFrame.cut_request ? "danger" : "success" },
+          { label: "目标", value: aiFrame.detections.length },
+          { label: "切割", value: aiFrame.cut_request ? "触发" : "待命" },
+          { label: "视频", value: videoConnected ? "正常" : "断开", tone: videoConnected ? "success" : "warning" }
         ]}
       />
 
       <SummaryTileGrid
         tone="info"
         items={[
-          { label: "灯珠数量", value: `${lightCount} / 16` },
+          { label: "灯珠", value: `${lightCount} / 16` },
           { label: "亮度", value: `${lightBrightness} / 255` },
           {
             label: "颜色",
@@ -83,16 +85,40 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
       />
 
       <div className="summary-card summary-card-info">
-        <span>灯光配置摘要</span>
+        <span>灯光</span>
         <strong>{lightSummary}</strong>
       </div>
 
+      <div className="config-entry config-entry-info" onClick={onOpenLightSettings} role="button" tabIndex={0}>
+        <div className="config-entry-copy">
+          <span className="config-entry-kicker">配置</span>
+          <strong>灯光设置</strong>
+          <p>亮度、颜色与点亮数量。</p>
+        </div>
+        <div className="config-entry-action">
+          <span className="config-entry-label">设置</span>
+        </div>
+      </div>
+
+      <div
+        className={`config-entry config-entry-warning ${manualMode ? "is-active" : ""}`}
+        onClick={onOpenManual}
+        role="button"
+        tabIndex={0}
+      >
+        <div className="config-entry-copy">
+          <span className="config-entry-kicker">调试</span>
+          <strong>{manualMode ? "手动调试" : "进入手动"}</strong>
+          <p>{manualMode ? "当前为手动模式。" : "安装与联调用。进入前会二次确认。"}</p>
+        </div>
+        <div className="config-entry-action">
+          <span className="config-entry-label">{manualMode ? "继续" : "进入"}</span>
+        </div>
+      </div>
+
       <div className="controls controls-single">
-        <button className={manualMode ? "primary" : ""} onClick={onOpenManual}>
-          {manualMode ? "继续手动调试" : "进入手动调试"}
-        </button>
         <button onClick={onSetAuto} disabled={!manualMode}>
-          切回自动运行
+          回到自动
         </button>
         <button className="danger" onClick={onEmergencyStop}>
           急停

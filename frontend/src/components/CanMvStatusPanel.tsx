@@ -10,7 +10,7 @@ export function CanMvStatusPanel({ status }: CanMvStatusPanelProps) {
   return (
     <section className="panel side-panel">
       <div className="header">
-        <h2>CanMV 状态</h2>
+        <h2>CanMV</h2>
         <span className={`badge ${status.canmv_connected ? "ok" : "warn"}`}>
           {status.canmv_connected ? "在线" : "离线"}
         </span>
