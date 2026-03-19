@@ -28,22 +28,20 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
   return (
     <section className="panel side-panel">
       <div className="header">
-        <h2>运行概览</h2>
+        <h2>运行信息</h2>
         <span className={`badge ${manualMode ? "warn" : "ok"}`}>{manualMode ? "手动调试" : "自动运行"}</span>
       </div>
 
-      <div className="machine-schema">
-        <div className={`schema-node ${aiFrame.detections.length > 0 ? "active" : ""}`}>
+      <div className="status-inline-strip">
+        <div className={`status-pill ${aiFrame.detections.length > 0 ? "active" : ""}`}>
           <span>识别</span>
           <strong>{aiFrame.detections.length > 0 ? "运行中" : "待机"}</strong>
         </div>
-        <div className={`schema-link ${aiFrame.cut_request ? "active" : ""}`}>{">"}</div>
-        <div className={`schema-node ${aiFrame.cut_request ? "active" : ""}`}>
+        <div className={`status-pill ${aiFrame.cut_request ? "active" : ""}`}>
           <span>切割位</span>
           <strong>{aiFrame.cut_request ? "到位" : "监测中"}</strong>
         </div>
-        <div className={`schema-link ${videoConnected ? "active" : ""}`}>{">"}</div>
-        <div className={`schema-node ${!manualMode ? "active" : ""}`}>
+        <div className={`status-pill ${!manualMode ? "active" : ""}`}>
           <span>模式</span>
           <strong>{manualMode ? "手动" : "自动"}</strong>
         </div>

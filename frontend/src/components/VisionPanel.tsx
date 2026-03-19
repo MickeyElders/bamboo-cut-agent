@@ -66,31 +66,20 @@ export function VisionPanel(props: VisionPanelProps) {
             <span className="step-name">切割位</span>
             <strong>{aiFrame.cut_request ? "到位" : "监测中"}</strong>
           </div>
-          <div className={`process-step ${manualMode ? "active" : ""}`}>
-            <span className="step-index">03</span>
-            <span className="step-name">模式</span>
-            <strong>{manualMode ? "手动" : "自动"}</strong>
-          </div>
           <div className={`process-step ${lightCount > 0 ? "active" : ""}`}>
-            <span className="step-index">04</span>
+            <span className="step-index">03</span>
             <span className="step-name">灯光</span>
             <strong>{lightCount} / 16</strong>
           </div>
         </div>
 
         <div className="spec-line">
-          <span>模式</span>
-          <strong>
-            {videoConfig.width}x{videoConfig.height}@{videoConfig.fps} {videoConfig.encoder}
-          </strong>
-        </div>
-        <div className="spec-line">
-          <span>切割</span>
-          <strong>{aiFrame.cut_request ? "已触发" : "空闲"}</strong>
-        </div>
-        <div className="spec-line">
           <span>目标数</span>
           <strong>{aiFrame.detections.length}</strong>
+        </div>
+        <div className="spec-line">
+          <span>视频</span>
+          <strong>{videoConfig.width}x{videoConfig.height}@{videoConfig.fps}</strong>
         </div>
 
         <div className="vision-control-strip">
@@ -103,11 +92,11 @@ export function VisionPanel(props: VisionPanelProps) {
           <button className={manualMode ? "surface-button warning" : "surface-button"} onClick={onOpenManual}>
             {manualMode ? "手动调试中" : "手动调试"}
           </button>
-          <button className="surface-button" onClick={onSetAuto} disabled={!manualMode}>
-            回到自动
-          </button>
           <button className="surface-button danger" onClick={onEmergencyStop}>
             急停
+          </button>
+          <button className="surface-button" onClick={onSetAuto} disabled={!manualMode}>
+            回到自动
           </button>
         </div>
         {videoError ? <div className="error-text">{videoError}</div> : null}

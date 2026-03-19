@@ -17,14 +17,13 @@ import {
   uiWsUrl,
   videoWsUrl
 } from "./api";
-import { CanMvStatusPanel } from "./components/CanMvStatusPanel";
 import { ConfirmActionModal } from "./components/ConfirmActionModal";
 import { CutSettingsModal } from "./components/CutSettingsModal";
 import { DeviceControlPanel } from "./components/DeviceControlPanel";
 import { LightSettingsModal } from "./components/LightSettingsModal";
 import { ManualControlModal } from "./components/ManualControlModal";
-import { PiStatusPanel } from "./components/PiStatusPanel";
 import { SummaryTileGrid } from "./components/SummaryTileGrid";
+import { SystemStatusStrip } from "./components/SystemStatusStrip";
 import { VisionPanel } from "./components/VisionPanel";
 import type { AiFrame, CutConfig, SystemStatus, VideoConfig } from "./types";
 import {
@@ -419,24 +418,28 @@ export default function App() {
         />
 
         <aside className="sidebar">
-          <PiStatusPanel status={systemStatus.raspberry_pi} />
-          <CanMvStatusPanel status={systemStatus} />
+          <SystemStatusStrip status={systemStatus} />
 
           <section className="panel side-panel">
             <div className="header">
-              <h2>切割位设置</h2>
+              <h2>切割信息</h2>
               <span className={`badge ${cutDirty ? "warn" : "ok"}`}>{cutDirty ? "待应用" : "已应用"}</span>
             </div>
 
-            <SummaryTileGrid
-              tone="warning"
-              items={[
-                { label: "切割线", value: formatRatio(cutConfig.line_ratio_x) },
-                { label: "容差带", value: formatRatio(cutConfig.tolerance_ratio_x) },
-                { label: "命中次数", value: cutConfig.min_hits },
-                { label: "保持时间", value: `${cutConfig.hold_ms} ms` }
-              ]}
-            />
+            <div className="compact-info-list compact-info-warning">
+              <div className="compact-info-row">
+                <span>切割线</span>
+                <strong>{formatRatio(cutConfig.line_ratio_x)}</strong>
+                <span>容差带</span>
+                <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
+              </div>
+              <div className="compact-info-row">
+                <span>命中次数</span>
+                <strong>{cutConfig.min_hits}</strong>
+                <span>保持时间</span>
+                <strong>{cutConfig.hold_ms} ms</strong>
+              </div>
+            </div>
 
             <div className="summary-card summary-card-warning">
               <span>切割位</span>
