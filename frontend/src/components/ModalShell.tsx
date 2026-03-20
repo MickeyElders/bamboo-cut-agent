@@ -5,12 +5,13 @@ type ModalShellProps = {
   badge?: string;
   badgeTone?: "ok" | "warn";
   onClose: () => void;
+  closeOnBackdrop?: boolean;
   children: ReactNode;
 };
 
-export function ModalShell({ title, badge, badgeTone = "ok", onClose, children }: ModalShellProps) {
+export function ModalShell({ title, badge, badgeTone = "ok", onClose, closeOnBackdrop = true, children }: ModalShellProps) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={closeOnBackdrop ? onClose : undefined}>
       <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
         <div className="header">
           <h2>{title}</h2>

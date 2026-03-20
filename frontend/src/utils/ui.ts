@@ -72,3 +72,84 @@ export function getLightSummary(count: number, brightness: number, color: string
 export function getCutSummary(cutConfig: CutConfig) {
   return `位置 ${formatRatio(cutConfig.line_ratio_x)} | 容差 ${formatRatio(cutConfig.tolerance_ratio_x)} | 命中 ${cutConfig.min_hits} | 保持 ${cutConfig.hold_ms}ms | ${cutConfig.show_guide ? "显示辅助线" : "隐藏辅助线"}`;
 }
+
+export function formatAutoState(value?: string | null) {
+  switch (value) {
+    case "manual_ready":
+      return "手动待机";
+    case "feeding":
+      return "送料中";
+    case "position_reached":
+      return "到达切割位";
+    case "clamping":
+      return "压紧中";
+    case "cutting":
+      return "切割中";
+    case "blade_return":
+      return "切刀回程";
+    case "release":
+      return "释放中";
+    case "emergency_stop":
+      return "急停";
+    case "auto_armed":
+      return "自动就绪";
+    case "waiting_cut_signal":
+      return "等待切割信号";
+    case "unknown":
+    case undefined:
+    case null:
+      return "-";
+    default:
+      return value;
+  }
+}
+
+export function formatLastAction(value?: string | null) {
+  switch (value) {
+    case "init":
+      return "初始化";
+    case "mode_manual":
+      return "切换手动";
+    case "mode_auto":
+      return "切换自动";
+    case "feed_start":
+      return "启动送料";
+    case "feed_stop":
+      return "停止送料";
+    case "clamp_engage":
+      return "压紧夹持";
+    case "clamp_release":
+      return "释放夹持";
+    case "cutter_down":
+      return "切刀下压";
+    case "cutter_up":
+      return "切刀抬起";
+    case "light_off":
+      return "关闭灯光";
+    case "light_set_count":
+      return "调整灯珠数量";
+    case "light_config":
+      return "更新灯光配置";
+    case "cut_request_received":
+      return "收到切割请求";
+    case "feed_stop_auto":
+      return "自动停止送料";
+    case "clamp_engage_auto":
+      return "自动压紧";
+    case "cutter_down_auto":
+      return "自动下刀";
+    case "cutter_up_auto":
+      return "自动抬刀";
+    case "clamp_release_auto":
+      return "自动释放";
+    case "cycle_complete":
+      return "切割完成";
+    case "emergency_stop":
+      return "急停";
+    case undefined:
+    case null:
+      return "-";
+    default:
+      return value;
+  }
+}

@@ -48,12 +48,21 @@ export type PiSystemStatus = {
   uptime_seconds?: number | null;
 };
 
+export type JobStatus = {
+  mode: string;
+  auto_state: string;
+  cycle_count: number;
+  last_action: string;
+  cut_request_active: boolean;
+};
+
 export type SystemStatus = {
   raspberry_pi: PiSystemStatus;
   canmv_connected: boolean;
   canmv_last_seen_seconds?: number | null;
   canmv_fps?: number | null;
   canmv_status?: CanMvSystemStatus | null;
+  job_status?: JobStatus | null;
 };
 
 export type CutConfig = {

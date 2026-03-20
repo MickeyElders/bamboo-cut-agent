@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from ..canmv_bridge import CanMvBridge
 from ..cut_config import CutConfigStore
-from ..models import AiFrame, CommandAck
+from ..models import AiFrame, CommandAck, JobStatus
 from ..system_status import SystemStatusStore
 from ..video_webrtc import VideoWebRtcManager
 from ..ws_manager import WebSocketHub
@@ -35,7 +35,16 @@ class RuntimeServices:
         )
 
     async def broadcast_system_status(self) -> None:
-        payload = self.system_status.snapshot().model_dump()
+        snapshot = self.system_status.snapshot()
+        motor_status = await self.motor.status()
+        job_status = JobStatus(
+            mode=str(motor_status.get("mode", "auto")),
+            auto_state=str(motor_status.get("auto_state", "unknown")),
+            cycle_count=int(motor_status.get("cycle_count", 0)),
+            last_action=str(motor_status.get("last_action", "init")),
+            cut_request_active=bool(motor_status.get("cut_request_active", False)),
+        )
+        payload = snapshot.model_copy(update={"job_status": job_status}).model_dump()
         await self.hub.broadcast_to_ui(json.dumps({"type": "system_status", "payload": payload}))
 
     async def broadcast_ai_frame(self, frame: AiFrame) -> None:

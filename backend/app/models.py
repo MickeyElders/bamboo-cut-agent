@@ -58,12 +58,21 @@ class PiSystemStatus(BaseModel):
     uptime_seconds: float | None = None
 
 
+class JobStatus(BaseModel):
+    mode: str
+    auto_state: str
+    cycle_count: int
+    last_action: str
+    cut_request_active: bool
+
+
 class SystemStatus(BaseModel):
     raspberry_pi: PiSystemStatus
     canmv_connected: bool
     canmv_last_seen_seconds: float | None = None
     canmv_fps: float | None = None
     canmv_status: CanMvSystemStatus | None = None
+    job_status: JobStatus | None = None
 
 
 class CutConfig(BaseModel):

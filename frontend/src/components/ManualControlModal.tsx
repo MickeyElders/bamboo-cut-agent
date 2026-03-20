@@ -4,17 +4,13 @@ type ManualControlModalProps = {
   open: boolean;
   manualMode: boolean;
   error: string;
-  onClose: () => void;
-  onSetManual: () => void;
-  onSetAuto: () => void;
+  onExit: () => void;
   onStartFeed: () => void;
   onStopFeed: () => void;
   onEngageClamp: () => void;
   onReleaseClamp: () => void;
   onStartCutter: () => void;
   onStopCutter: () => void;
-  onOpenLightSettings: () => void;
-  onLightOff: () => void;
 };
 
 export function ManualControlModal(props: ManualControlModalProps) {
@@ -22,17 +18,13 @@ export function ManualControlModal(props: ManualControlModalProps) {
     open,
     manualMode,
     error,
-    onClose,
-    onSetManual,
-    onSetAuto,
+    onExit,
     onStartFeed,
     onStopFeed,
     onEngageClamp,
     onReleaseClamp,
     onStartCutter,
-    onStopCutter,
-    onOpenLightSettings,
-    onLightOff
+    onStopCutter
   } = props;
 
   if (!open) return null;
@@ -42,7 +34,8 @@ export function ManualControlModal(props: ManualControlModalProps) {
       title="手动调试"
       badge={manualMode ? "手动模式" : "自动模式"}
       badgeTone={manualMode ? "warn" : "ok"}
-      onClose={onClose}
+      onClose={onExit}
+      closeOnBackdrop={false}
     >
       <div className="summary-card summary-card-warning">
         <span>说明</span>
@@ -52,14 +45,6 @@ export function ManualControlModal(props: ManualControlModalProps) {
             : "当前仍处于自动模式。如需调试，请先在主界面完成进入手动的确认操作。"}
         </strong>
       </div>
-
-      {manualMode ? (
-        <div className="mode-row mode-row-single">
-          <button className="mode-button" onClick={onSetAuto}>
-            切回自动
-          </button>
-        </div>
-      ) : null}
 
       <div className="controls controls-single">
         <button className="primary" onClick={onStartFeed} disabled={!manualMode}>
@@ -80,11 +65,11 @@ export function ManualControlModal(props: ManualControlModalProps) {
         <button onClick={onStopCutter} disabled={!manualMode}>
           切刀抬起
         </button>
-        <button className="primary" onClick={onOpenLightSettings} disabled={!manualMode}>
-          设置灯光
-        </button>
-        <button onClick={onLightOff} disabled={!manualMode}>
-          关灯
+      </div>
+
+      <div className="modal-actions modal-actions-single">
+        <button className="mode-button" onClick={onExit}>
+          退出手动调试
         </button>
       </div>
 

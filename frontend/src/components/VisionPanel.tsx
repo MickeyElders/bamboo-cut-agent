@@ -15,7 +15,6 @@ type VisionPanelProps = {
   onOpenCutSettings: () => void;
   onOpenLightSettings: () => void;
   onOpenManual: () => void;
-  onSetAuto: () => void;
   onEmergencyStop: () => void;
 };
 
@@ -33,7 +32,6 @@ export function VisionPanel(props: VisionPanelProps) {
     onOpenCutSettings,
     onOpenLightSettings,
     onOpenManual,
-    onSetAuto,
     onEmergencyStop
   } = props;
 
@@ -85,9 +83,6 @@ export function VisionPanel(props: VisionPanelProps) {
           </button>
           <button className="surface-button danger" onClick={onEmergencyStop}>
             急停
-          </button>
-          <button className="surface-button" onClick={onSetAuto} disabled={!manualMode}>
-            回到自动
           </button>
         </div>
         {videoError ? <div className="error-text">{videoError}</div> : null}

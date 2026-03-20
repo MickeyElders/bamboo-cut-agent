@@ -12,6 +12,7 @@ type LightSettingsModalProps = {
   count: number;
   brightness: number;
   color: string;
+  applying: boolean;
   onCountChange: (value: number) => void;
   onBrightnessChange: (value: number) => void;
   onColorChange: (value: string) => void;
@@ -26,6 +27,7 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
     count,
     brightness,
     color,
+    applying,
     onCountChange,
     onBrightnessChange,
     onColorChange,
@@ -50,6 +52,7 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
           max="16"
           step="1"
           value={count}
+          disabled={applying}
           onChange={(event) => onCountChange(Number(event.target.value))}
         />
       </div>
@@ -66,6 +69,7 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
           max="255"
           step="1"
           value={brightness}
+          disabled={applying}
           onChange={(event) => onBrightnessChange(Number(event.target.value))}
         />
       </div>
@@ -73,7 +77,7 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
       <div className="color-picker-row">
         <span>颜色</span>
         <label className="color-picker">
-          <input type="color" value={color} onChange={(event) => onColorChange(event.target.value)} />
+          <input type="color" value={color} disabled={applying} onChange={(event) => onColorChange(event.target.value)} />
           <strong>{color.toUpperCase()}</strong>
         </label>
       </div>
@@ -83,6 +87,7 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
           <button
             key={preset.label}
             className={`preset-button ${color.toLowerCase() === preset.color ? "active" : ""}`}
+            disabled={applying}
             onClick={() => onColorChange(preset.color)}
           >
             <span className="light-color-chip" style={{ backgroundColor: preset.color }} />
@@ -105,9 +110,11 @@ export function LightSettingsModal(props: LightSettingsModalProps) {
       </div>
 
       <div className="modal-actions">
-        <button onClick={onReset}>恢复默认</button>
-        <button onClick={onClose}>取消</button>
-        <button className="primary" onClick={onApply}>应用设置</button>
+        <button onClick={onReset} disabled={applying}>恢复默认</button>
+        <button onClick={onClose} disabled={applying}>取消</button>
+        <button className="primary" onClick={onApply} disabled={applying}>
+          {applying ? "应用中..." : "应用设置"}
+        </button>
       </div>
     </ModalShell>
   );

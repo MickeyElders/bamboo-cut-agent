@@ -1,9 +1,10 @@
-import type { AiFrame } from "../types";
-import type { RunState } from "../utils/ui";
+import type { AiFrame, SystemStatus } from "../types";
+import { formatAutoState, formatLastAction, type RunState } from "../utils/ui";
 import { SummaryTileGrid } from "./SummaryTileGrid";
 
 type DeviceControlPanelProps = {
   aiFrame: AiFrame;
+  systemStatus: SystemStatus;
   runState: RunState;
   manualMode: boolean;
   videoConnected: boolean;
@@ -16,6 +17,7 @@ type DeviceControlPanelProps = {
 export function DeviceControlPanel(props: DeviceControlPanelProps) {
   const {
     aiFrame,
+    systemStatus,
     runState,
     manualMode,
     videoConnected,
@@ -24,6 +26,8 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
     lightColor,
     lightSummary
   } = props;
+
+  const jobStatus = systemStatus.job_status;
 
   return (
     <section className="panel side-panel">
@@ -54,6 +58,16 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
           { label: "目标", value: aiFrame.detections.length },
           { label: "切割", value: aiFrame.cut_request ? "触发" : "待命" },
           { label: "视频", value: videoConnected ? "正常" : "断开", tone: videoConnected ? "success" : "warning" }
+        ]}
+      />
+
+      <SummaryTileGrid
+        tone="info"
+        items={[
+          { label: "阶段", value: formatAutoState(jobStatus?.auto_state) },
+          { label: "最近动作", value: formatLastAction(jobStatus?.last_action) },
+          { label: "累计循环", value: jobStatus?.cycle_count ?? 0 },
+          { label: "切割请求", value: jobStatus?.cut_request_active ? "活跃" : "空闲" }
         ]}
       />
 

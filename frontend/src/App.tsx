@@ -55,7 +55,8 @@ const EMPTY_SYSTEM: SystemStatus = {
   canmv_connected: false,
   canmv_last_seen_seconds: null,
   canmv_fps: null,
-  canmv_status: null
+  canmv_status: null,
+  job_status: null
 };
 
 const DEFAULT_CUT_CONFIG: CutConfig = {
@@ -138,6 +139,7 @@ export default function App() {
   const [lightBrightness, setLightBrightness] = useState(DEFAULT_LIGHT.brightness);
   const [lightColor, setLightColor] = useState(DEFAULT_LIGHT.color);
   const [lightModalOpen, setLightModalOpen] = useState(false);
+  const [lightApplying, setLightApplying] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
   const [aiFrame, setAiFrame] = useState<AiFrame>({
@@ -351,10 +353,15 @@ export default function App() {
 
   async function handleApplyLightSettings() {
     const { red, green, blue } = hexToRgb(lightColor);
-    await runControl(
-      () => applyLightSettings(lightCount, lightBrightness, red, green, blue),
-      () => setLightModalOpen(false)
-    );
+    setLightApplying(true);
+    try {
+      await runControl(
+        () => applyLightSettings(lightCount, lightBrightness, red, green, blue),
+        () => setLightModalOpen(false)
+      );
+    } finally {
+      setLightApplying(false);
+    }
   }
 
   function updateCutConfig<K extends keyof CutConfig>(key: K, value: CutConfig[K]) {
@@ -413,7 +420,6 @@ export default function App() {
           onOpenCutSettings={() => setCutModalOpen(true)}
           onOpenLightSettings={() => setLightModalOpen(true)}
           onOpenManual={handleRequestManualMode}
-          onSetAuto={handleReturnAutoMode}
           onEmergencyStop={() => void runControl(signalEmergencyStop)}
         />
 
@@ -461,6 +467,7 @@ export default function App() {
 
           <DeviceControlPanel
             aiFrame={aiFrame}
+            systemStatus={systemStatus}
             runState={runState}
             manualMode={manualMode}
             videoConnected={videoConnected}
@@ -477,6 +484,7 @@ export default function App() {
         count={lightCount}
         brightness={lightBrightness}
         color={lightColor}
+        applying={lightApplying}
         onCountChange={setLightCount}
         onBrightnessChange={setLightBrightness}
         onColorChange={setLightColor}
@@ -500,17 +508,13 @@ export default function App() {
         open={manualModalOpen}
         manualMode={manualMode}
         error={controlError}
-        onClose={() => setManualModalOpen(false)}
-        onSetManual={() => void runControl(setManualMode, () => setControlMode("manual"))}
-        onSetAuto={handleReturnAutoMode}
+        onExit={handleReturnAutoMode}
         onStartFeed={() => void runControl(startFeed)}
         onStopFeed={() => void runControl(stopFeed)}
         onEngageClamp={() => void runControl(engageClamp)}
         onReleaseClamp={() => void runControl(releaseClamp)}
         onStartCutter={() => void runControl(startCutter)}
         onStopCutter={() => void runControl(stopCutter)}
-        onOpenLightSettings={() => setLightModalOpen(true)}
-        onLightOff={() => void runControl(switchLightOff, () => setLightCount(0))}
       />
 
       <ConfirmActionModal
