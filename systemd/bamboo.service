@@ -29,7 +29,6 @@ Environment=VIDEO_ENCODER=x264enc
 Environment=VIDEO_BITRATE_KBPS=2500
 Environment=VIDEO_STUN_SERVER=
 Environment=XDG_RUNTIME_DIR=/run/bamboo
-Environment=WAYLAND_DISPLAY=wayland-1
 RuntimeDirectory=bamboo
 TTYPath=/dev/tty1
 TTYReset=yes
