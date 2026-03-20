@@ -8,6 +8,9 @@ Before=getty.target
 [Service]
 Type=simple
 User=pi
+PAMName=login
+UtmpIdentifier=tty1
+UtmpMode=user
 WorkingDirectory=/home/pi/bamboo-cut-agent
 Environment=API_HOST=0.0.0.0
 Environment=API_PORT=8000
