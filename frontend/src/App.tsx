@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyLightSettings,
   engageClamp,
+  executeSystemAction,
   fetchCutConfig,
+  fetchSystemMaintenance,
   fetchVideoConfig,
   releaseClamp,
   saveCutConfig,
@@ -13,26 +15,19 @@ import {
   startFeed,
   stopCutter,
   stopFeed,
-  switchLightOff,
   uiWsUrl,
-  videoWsUrl
+  videoWsUrl,
 } from "./api";
 import { ConfirmActionModal } from "./components/ConfirmActionModal";
 import { CutSettingsModal } from "./components/CutSettingsModal";
 import { DeviceControlPanel } from "./components/DeviceControlPanel";
 import { LightSettingsModal } from "./components/LightSettingsModal";
 import { ManualControlModal } from "./components/ManualControlModal";
-import { SummaryTileGrid } from "./components/SummaryTileGrid";
+import { SystemMaintenanceModal } from "./components/SystemMaintenanceModal";
 import { SystemStatusStrip } from "./components/SystemStatusStrip";
 import { VisionPanel } from "./components/VisionPanel";
-import type { AiFrame, CutConfig, SystemStatus, VideoConfig } from "./types";
-import {
-  deriveRunState,
-  formatRatio,
-  getCutSummary,
-  getLightSummary,
-  hexToRgb
-} from "./utils/ui";
+import type { AiFrame, CutConfig, SystemMaintenanceSnapshot, SystemStatus, VideoConfig } from "./types";
+import { deriveRunState, formatRatio, getCutSummary, getLightSummary, hexToRgb } from "./utils/ui";
 
 const EMPTY_VIDEO: VideoConfig = {
   enabled: false,
@@ -42,7 +37,7 @@ const EMPTY_VIDEO: VideoConfig = {
   height: 0,
   fps: 0,
   encoder: "-",
-  bitrate_kbps: 0
+  bitrate_kbps: 0,
 };
 
 const EMPTY_SYSTEM: SystemStatus = {
@@ -50,13 +45,13 @@ const EMPTY_SYSTEM: SystemStatus = {
     hostname: "raspberrypi",
     cpu_percent: null,
     memory_percent: null,
-    uptime_seconds: null
+    uptime_seconds: null,
   },
   canmv_connected: false,
   canmv_last_seen_seconds: null,
   canmv_fps: null,
   canmv_status: null,
-  job_status: null
+  job_status: null,
 };
 
 const DEFAULT_CUT_CONFIG: CutConfig = {
@@ -64,24 +59,22 @@ const DEFAULT_CUT_CONFIG: CutConfig = {
   tolerance_ratio_x: 0.015,
   show_guide: false,
   min_hits: 3,
-  hold_ms: 200
+  hold_ms: 200,
 };
 
 const DEFAULT_LIGHT = {
   count: 16,
   brightness: 255,
-  color: "#ffffff"
+  color: "#ffffff",
 };
 
-type UiMessage =
-  | { type: "ai_frame"; payload: AiFrame }
-  | { type: "system_status"; payload: SystemStatus };
+type UiMessage = { type: "ai_frame"; payload: AiFrame } | { type: "system_status"; payload: SystemStatus };
 
 function drawVisionOverlay(
   canvas: HTMLCanvasElement,
   detections: AiFrame["detections"],
   cutConfig: CutConfig,
-  cutRequest: boolean
+  cutRequest: boolean,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -127,6 +120,7 @@ export default function App() {
   const cutDirtyRef = useRef(false);
 
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
+  const [systemMaintenance, setSystemMaintenance] = useState<SystemMaintenanceSnapshot | null>(null);
   const [videoConfig, setVideoConfig] = useState<VideoConfig>(EMPTY_VIDEO);
   const [cutConfig, setCutConfig] = useState<CutConfig>(DEFAULT_CUT_CONFIG);
   const [cutDirty, setCutDirty] = useState(false);
@@ -142,10 +136,15 @@ export default function App() {
   const [lightApplying, setLightApplying] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
+  const [systemModalOpen, setSystemModalOpen] = useState(false);
+  const [systemLoading, setSystemLoading] = useState(false);
+  const [systemApplyingAction, setSystemApplyingAction] = useState<string | null>(null);
+  const [systemError, setSystemError] = useState("");
+  const [systemConfirmAction, setSystemConfirmAction] = useState<string | null>(null);
   const [aiFrame, setAiFrame] = useState<AiFrame>({
     timestamp: Date.now() / 1000,
     detections: [],
-    cut_request: false
+    cut_request: false,
   });
   const [wsConnected, setWsConnected] = useState(false);
   const [videoConnected, setVideoConnected] = useState(false);
@@ -157,7 +156,7 @@ export default function App() {
   const cutSummary = useMemo(() => getCutSummary(cutConfig), [cutConfig]);
   const lightSummary = useMemo(
     () => getLightSummary(lightCount, lightBrightness, lightColor),
-    [lightCount, lightBrightness, lightColor]
+    [lightCount, lightBrightness, lightColor],
   );
 
   useEffect(() => {
@@ -169,7 +168,7 @@ export default function App() {
       .then((config) => {
         setVideoConfig(config);
         if (!config.enabled) {
-          setVideoError(config.detail || "视频后端不可用");
+          setVideoError(config.detail || "视频服务不可用");
         }
       })
       .catch(() => {
@@ -182,7 +181,7 @@ export default function App() {
         setCutDirty(false);
       })
       .catch(() => {
-        setCutError("获取切割位配置失败");
+        setCutError("获取切割配置失败");
       });
   }, []);
 
@@ -203,7 +202,7 @@ export default function App() {
           canmv_connected: true,
           canmv_last_seen_seconds: 0,
           canmv_fps: frame.fps ?? prev.canmv_fps,
-          canmv_status: frame.canmv_status ?? prev.canmv_status
+          canmv_status: frame.canmv_status ?? prev.canmv_status,
         }));
         if (!cutDirtyRef.current && frame.cut_config) {
           setCutConfig(frame.cut_config);
@@ -297,7 +296,7 @@ export default function App() {
         } else if (msg.type === "ice" && msg.candidate) {
           await peer.addIceCandidate({ candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex ?? 0 });
         } else if (msg.type === "error") {
-          setVideoError(msg.detail ?? "视频后端错误");
+          setVideoError(msg.detail ?? "视频服务异常");
         }
       } catch {
         setVideoError("WebRTC 协商失败");
@@ -317,8 +316,8 @@ export default function App() {
           JSON.stringify({
             type: "ice",
             candidate: event.candidate.candidate,
-            sdpMLineIndex: event.candidate.sdpMLineIndex ?? 0
-          })
+            sdpMLineIndex: event.candidate.sdpMLineIndex ?? 0,
+          }),
         );
       }
     };
@@ -345,7 +344,7 @@ export default function App() {
         setCutModalOpen(false);
       }
     } catch {
-      setCutError("保存切割位配置失败");
+      setCutError("保存切割配置失败");
     } finally {
       setCutSaving(false);
     }
@@ -357,10 +356,23 @@ export default function App() {
     try {
       await runControl(
         () => applyLightSettings(lightCount, lightBrightness, red, green, blue),
-        () => setLightModalOpen(false)
+        () => setLightModalOpen(false),
       );
     } finally {
       setLightApplying(false);
+    }
+  }
+
+  async function loadSystemMaintenance() {
+    setSystemLoading(true);
+    try {
+      const snapshot = await fetchSystemMaintenance();
+      setSystemMaintenance(snapshot);
+      setSystemError("");
+    } catch (error) {
+      setSystemError(error instanceof Error ? error.message : "设备维护操作执行失败");
+    } finally {
+      setSystemLoading(false);
     }
   }
 
@@ -404,6 +416,71 @@ export default function App() {
     });
   }
 
+  function handleOpenSystemMaintenance() {
+    setSystemModalOpen(true);
+    void loadSystemMaintenance();
+  }
+
+  function handleRequestSystemAction(action: string) {
+    setSystemConfirmAction(action);
+  }
+
+  async function handleConfirmSystemAction() {
+    if (!systemConfirmAction) return;
+    const action = systemConfirmAction;
+    setSystemConfirmAction(null);
+    setSystemApplyingAction(action);
+    setSystemError("");
+    try {
+      const ack = await executeSystemAction(action);
+      setSystemError(ack.detail);
+      if (action === "restart_network") {
+        await loadSystemMaintenance();
+      }
+    } catch (error) {
+      setSystemError(error instanceof Error ? error.message : "设备维护操作执行失败");
+    } finally {
+      setSystemApplyingAction(null);
+    }
+  }
+
+  function getSystemActionMeta(action: string | null) {
+    switch (action) {
+      case "restart_app":
+        return {
+          title: "重启界面",
+          description: "将重启当前控制界面，画面会短暂中断。",
+          confirmLabel: "确认重启界面",
+        };
+      case "restart_network":
+        return {
+          title: "重启网络",
+          description: "将重启设备网络，远程连接会短暂中断。",
+          confirmLabel: "确认重启网络",
+        };
+      case "reboot_device":
+        return {
+          title: "重启设备",
+          description: "设备将立即重启，请确认当前允许中断运行。",
+          confirmLabel: "确认重启设备",
+        };
+      case "shutdown_device":
+        return {
+          title: "设备关机",
+          description: "设备将立即关机，请确认当前可以安全关机。",
+          confirmLabel: "确认设备关机",
+        };
+      default:
+        return {
+          title: "设备维护",
+          description: "确认执行当前维护操作。",
+          confirmLabel: "确认执行",
+        };
+    }
+  }
+
+  const systemActionMeta = getSystemActionMeta(systemConfirmAction);
+
   return (
     <>
       <main className="app">
@@ -415,16 +492,16 @@ export default function App() {
           aiFrame={aiFrame}
           manualMode={manualMode}
           lightCount={lightCount}
-          videoConfig={videoConfig}
           videoError={videoError}
           onOpenCutSettings={() => setCutModalOpen(true)}
           onOpenLightSettings={() => setLightModalOpen(true)}
+          onOpenSystemMaintenance={handleOpenSystemMaintenance}
           onOpenManual={handleRequestManualMode}
           onEmergencyStop={() => void runControl(signalEmergencyStop)}
         />
 
         <aside className="sidebar">
-          <SystemStatusStrip status={systemStatus} />
+          <SystemStatusStrip status={systemStatus} maintenance={systemMaintenance} videoConnected={videoConnected} />
 
           <section className="panel side-panel">
             <div className="header">
@@ -440,7 +517,7 @@ export default function App() {
                 <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
               </div>
               <div className="compact-info-row">
-                <span>命中次数</span>
+                <span>鍛戒腑娆℃暟</span>
                 <strong>{cutConfig.min_hits}</strong>
                 <span>保持时间</span>
                 <strong>{cutConfig.hold_ms} ms</strong>
@@ -448,7 +525,7 @@ export default function App() {
             </div>
 
             <div className="summary-card summary-card-warning">
-              <span>切割位</span>
+              <span>切割摘要</span>
               <strong>{cutSummary}</strong>
             </div>
 
@@ -456,10 +533,10 @@ export default function App() {
               <div className="config-entry-copy">
                 <span className="config-entry-kicker">配置</span>
                 <strong>切割位设置</strong>
-                <p>位置、容差与触发条件。</p>
+                <p>位置、容差和触发条件。</p>
               </div>
               <div className="config-entry-action">
-                <span className="config-entry-label">设置</span>
+                <span className="config-entry-label">打开设置</span>
               </div>
             </div>
             {cutError ? <div className="error-text">{cutError}</div> : null}
@@ -517,14 +594,35 @@ export default function App() {
         onStopCutter={() => void runControl(stopCutter)}
       />
 
+      <SystemMaintenanceModal
+        open={systemModalOpen}
+        snapshot={systemMaintenance}
+        loading={systemLoading}
+        applyingAction={systemApplyingAction}
+        error={systemError}
+        onClose={() => setSystemModalOpen(false)}
+        onRefresh={() => void loadSystemMaintenance()}
+        onAction={handleRequestSystemAction}
+      />
+
       <ConfirmActionModal
         open={manualConfirmOpen}
         title="进入手动调试"
-        description="进入手动模式后，设备将退出自动运行。该模式仅用于安装调试，确认继续吗？"
+        description="进入手动模式后，设备将退出自动运行。该模式仅用于安装和调试。"
         confirmLabel="确认进入手动"
         onConfirm={handleConfirmManualMode}
         onCancel={() => setManualConfirmOpen(false)}
       />
+
+      <ConfirmActionModal
+        open={systemConfirmAction !== null}
+        title={systemActionMeta.title}
+        description={systemActionMeta.description}
+        confirmLabel={systemActionMeta.confirmLabel}
+        onConfirm={() => void handleConfirmSystemAction()}
+        onCancel={() => setSystemConfirmAction(null)}
+      />
     </>
   );
 }
+

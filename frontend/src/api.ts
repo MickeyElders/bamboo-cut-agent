@@ -1,4 +1,4 @@
-import type { CommandAck, CutConfig, VideoConfig } from "./types";
+import type { CommandAck, CutConfig, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -104,6 +104,33 @@ export async function saveCutConfig(config: Partial<CutConfig>) {
     throw new Error("Failed to save cut config");
   }
   return (await res.json()) as CutConfig;
+}
+
+export async function fetchSystemMaintenance() {
+  const res = await fetch(`${API_BASE}/api/system/maintenance`);
+  if (!res.ok) {
+    throw new Error("获取系统维护信息失败");
+  }
+  return (await res.json()) as SystemMaintenanceSnapshot;
+}
+
+export async function executeSystemAction(action: string) {
+  const res = await fetch(`${API_BASE}/api/system/action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action })
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const payload = (await res.json()) as { detail?: string };
+      detail = payload.detail ?? "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || `系统操作执行失败: ${action}`);
+  }
+  return (await res.json()) as SystemActionAck;
 }
 
 export function uiWsUrl() {

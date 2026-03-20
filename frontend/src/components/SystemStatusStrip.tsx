@@ -1,15 +1,77 @@
-import type { SystemStatus } from "../types";
-import { formatPercent, formatSeconds, formatTemp } from "../utils/ui";
+﻿import type { SystemMaintenanceSnapshot, SystemStatus } from "../types";
+import { formatDisk, formatPercent, formatSeconds, formatTemp } from "../utils/ui";
+import { SummaryTileGrid, type SummaryTileTone } from "./SummaryTileGrid";
 
 type SystemStatusStripProps = {
   status: SystemStatus;
+  maintenance: SystemMaintenanceSnapshot | null;
+  videoConnected: boolean;
 };
 
-export function SystemStatusStrip({ status }: SystemStatusStripProps) {
+function getDiskTone(percent?: number | null): SummaryTileTone {
+  if (percent == null) return "default";
+  if (percent >= 90) return "danger";
+  if (percent >= 75) return "warning";
+  return "success";
+}
+
+function getDeviceStatus(maintenance: SystemMaintenanceSnapshot | null, videoConnected: boolean, aiConnected: boolean) {
+  if (!maintenance) {
+    return {
+      tone: "warning" as SummaryTileTone,
+      title: "设备信息未加载",
+      detail: "正在读取设备状态。",
+    };
+  }
+  if ((maintenance.disk_percent ?? 0) >= 90) {
+    return {
+      tone: "danger" as SummaryTileTone,
+      title: "存储空间紧张",
+      detail: "建议尽快清理存储空间。",
+    };
+  }
+  if (!maintenance.network_online) {
+    return {
+      tone: "warning" as SummaryTileTone,
+      title: "网络连接受限",
+      detail: "当前没有可用 IP，远程访问会受影响。",
+    };
+  }
+  if (!videoConnected) {
+    return {
+      tone: "warning" as SummaryTileTone,
+      title: "画面链路异常",
+      detail: "请检查视频采集与传输链路。",
+    };
+  }
+  if (!aiConnected) {
+    return {
+      tone: "warning" as SummaryTileTone,
+      title: "AI 识别离线",
+      detail: "CanMV 暂未在线，识别与切割触发不可用。",
+    };
+  }
+  return {
+    tone: "success" as SummaryTileTone,
+    title: "设备运行正常",
+    detail: "网络、画面、AI 与存储状态正常。",
+  };
+}
+
+export function SystemStatusStrip({ status, maintenance, videoConnected }: SystemStatusStripProps) {
+  const aiConnected = status.canmv_connected;
+  const device = getDeviceStatus(maintenance, videoConnected, aiConnected);
+
   return (
     <section className="panel side-panel">
       <div className="header">
-        <h2>系统信息</h2>
+        <h2>设备状态</h2>
+      </div>
+
+      <div className={`system-health-banner tone-${device.tone}`}>
+        <span>设备提示</span>
+        <strong>{device.title}</strong>
+        <p>{device.detail}</p>
       </div>
 
       <div className="system-strip">
@@ -38,9 +100,7 @@ export function SystemStatusStrip({ status }: SystemStatusStripProps) {
         <article className="system-mini-card">
           <div className="system-mini-head">
             <h3>CanMV</h3>
-            <span className={`badge ${status.canmv_connected ? "ok" : "warn"}`}>
-              {status.canmv_connected ? "在线" : "离线"}
-            </span>
+            <span className={`badge ${aiConnected ? "ok" : "warn"}`}>{aiConnected ? "在线" : "离线"}</span>
           </div>
 
           <div className="system-mini-metrics">
@@ -63,6 +123,42 @@ export function SystemStatusStrip({ status }: SystemStatusStripProps) {
           </div>
         </article>
       </div>
+
+      <SummaryTileGrid
+        tone={device.tone}
+        items={[
+          { label: "设备状态", value: device.title, tone: device.tone },
+          { label: "网络状态", value: maintenance?.network_online ? "在线" : "离线", tone: maintenance?.network_online ? "success" : "warning" },
+          { label: "画面状态", value: videoConnected ? "正常" : "异常", tone: videoConnected ? "success" : "warning" },
+          { label: "AI 识别", value: aiConnected ? "在线" : "离线", tone: aiConnected ? "success" : "warning" },
+        ]}
+      />
+
+      <SummaryTileGrid
+        tone="info"
+        items={[
+          { label: "当前 IP", value: maintenance?.ip_addresses?.[0] ?? "-" },
+          { label: "Wi-Fi", value: maintenance?.wifi_ssid ?? "未连接", tone: maintenance?.wifi_ssid ? "success" : "warning" },
+          { label: "默认接口", value: maintenance?.default_interface ?? "-" },
+          { label: "剩余空间", value: maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB` },
+        ]}
+      />
+
+      <SummaryTileGrid
+        tone="default"
+        items={[
+          {
+            label: "存储状态",
+            value: formatDisk(maintenance?.disk_used_gb, maintenance?.disk_total_gb, maintenance?.disk_percent),
+            tone: getDiskTone(maintenance?.disk_percent),
+          },
+          {
+            label: "存储余量",
+            value: maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB`,
+            tone: getDiskTone(maintenance?.disk_percent),
+          },
+        ]}
+      />
     </section>
   );
 }

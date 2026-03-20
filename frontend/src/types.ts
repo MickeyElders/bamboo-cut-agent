@@ -1,4 +1,4 @@
-export type Detection = {
+﻿export type Detection = {
   label: string;
   score: number;
   x: number;
@@ -72,3 +72,34 @@ export type CutConfig = {
   min_hits: number;
   hold_ms: number;
 };
+
+export type NetworkInterfaceStatus = {
+  name: string;
+  is_up: boolean;
+  ipv4: string[];
+  mac?: string | null;
+  kind: string;
+};
+
+export type SystemMaintenanceSnapshot = {
+  hostname: string;
+  device_url: string;
+  default_interface?: string | null;
+  wifi_ssid?: string | null;
+  network_online: boolean;
+  ip_addresses: string[];
+  interfaces: NetworkInterfaceStatus[];
+  disk_total_gb?: number | null;
+  disk_used_gb?: number | null;
+  disk_free_gb?: number | null;
+  disk_percent?: number | null;
+  supported_actions: string[];
+};
+
+export type SystemActionAck = {
+  ok: boolean;
+  action: string;
+  detail: string;
+  timestamp: number;
+};
+

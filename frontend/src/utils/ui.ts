@@ -1,4 +1,4 @@
-import type { AiFrame, CutConfig } from "../types";
+﻿import type { AiFrame, CutConfig } from "../types";
 
 export type RunState = {
   code: string;
@@ -27,12 +27,30 @@ export function formatRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+export function formatDisk(used?: number | null, total?: number | null, percent?: number | null) {
+  if (used == null || total == null || percent == null) return "-";
+  return `${used.toFixed(1)} / ${total.toFixed(1)} GB (${percent.toFixed(1)}%)`;
+}
+
+export function formatInterfaceKind(value: string) {
+  switch (value) {
+    case "wifi":
+      return "无线";
+    case "ethernet":
+      return "有线";
+    case "other":
+      return "其他";
+    default:
+      return "未知";
+  }
+}
+
 export function hexToRgb(hex: string) {
   const value = hex.replace("#", "");
   return {
     red: parseInt(value.slice(0, 2), 16),
     green: parseInt(value.slice(2, 4), 16),
-    blue: parseInt(value.slice(4, 6), 16)
+    blue: parseInt(value.slice(4, 6), 16),
   };
 }
 
@@ -40,37 +58,37 @@ export function deriveRunState(frame: AiFrame, videoConnected: boolean): RunStat
   if (!videoConnected) {
     return {
       code: "video-offline",
-      label: "视频离线",
-      detail: "等待后端视频流与采集设备恢复。"
+      label: "画面离线",
+      detail: "等待视频链路恢复。",
     };
   }
   if (frame.cut_request) {
     return {
       code: "position-ready",
       label: "到达切割位",
-      detail: "CanMV 已报告目标进入切割触发区。"
+      detail: "CanMV 已确认目标进入切割触发区。",
     };
   }
   if (frame.detections.length > 0) {
     return {
       code: "feeding",
       label: "识别运行中",
-      detail: "CanMV 正在跟踪目标，等待到达切割位。"
+      detail: "正在跟踪目标，等待进入切割位。",
     };
   }
   return {
     code: "manual-ready",
     label: "待机",
-    detail: "当前未发现目标，系统处于等待状态。"
+    detail: "当前未检测到目标。",
   };
 }
 
 export function getLightSummary(count: number, brightness: number, color: string) {
-  return `${count}/16 | 亮度 ${brightness}/255 | ${color.toUpperCase()}`;
+  return `${count}/16 颗 | 亮度 ${brightness}/255 | ${color.toUpperCase()}`;
 }
 
 export function getCutSummary(cutConfig: CutConfig) {
-  return `位置 ${formatRatio(cutConfig.line_ratio_x)} | 容差 ${formatRatio(cutConfig.tolerance_ratio_x)} | 命中 ${cutConfig.min_hits} | 保持 ${cutConfig.hold_ms}ms | ${cutConfig.show_guide ? "显示辅助线" : "隐藏辅助线"}`;
+  return `位置 ${formatRatio(cutConfig.line_ratio_x)} | 容差 ${formatRatio(cutConfig.tolerance_ratio_x)} | 命中 ${cutConfig.min_hits} 次 | 保持 ${cutConfig.hold_ms} ms | ${cutConfig.show_guide ? "显示辅助线" : "隐藏辅助线"}`;
 }
 
 export function formatAutoState(value?: string | null) {
@@ -86,7 +104,7 @@ export function formatAutoState(value?: string | null) {
     case "cutting":
       return "切割中";
     case "blade_return":
-      return "切刀回程";
+      return "刀片回程";
     case "release":
       return "释放中";
     case "emergency_stop":
@@ -121,13 +139,13 @@ export function formatLastAction(value?: string | null) {
     case "clamp_release":
       return "释放夹持";
     case "cutter_down":
-      return "切刀下压";
+      return "刀片下压";
     case "cutter_up":
-      return "切刀抬起";
+      return "刀片抬起";
     case "light_off":
       return "关闭灯光";
     case "light_set_count":
-      return "调整灯珠数量";
+      return "调整亮灯数量";
     case "light_config":
       return "更新灯光配置";
     case "cut_request_received":

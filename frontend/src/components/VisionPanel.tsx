@@ -1,5 +1,5 @@
-import type { RefObject } from "react";
-import type { AiFrame, VideoConfig } from "../types";
+﻿import type { RefObject } from "react";
+import type { AiFrame } from "../types";
 import type { RunState } from "../utils/ui";
 
 type VisionPanelProps = {
@@ -10,10 +10,10 @@ type VisionPanelProps = {
   aiFrame: AiFrame;
   manualMode: boolean;
   lightCount: number;
-  videoConfig: VideoConfig;
   videoError: string;
   onOpenCutSettings: () => void;
   onOpenLightSettings: () => void;
+  onOpenSystemMaintenance: () => void;
   onOpenManual: () => void;
   onEmergencyStop: () => void;
 };
@@ -27,12 +27,12 @@ export function VisionPanel(props: VisionPanelProps) {
     aiFrame,
     manualMode,
     lightCount,
-    videoConfig,
     videoError,
     onOpenCutSettings,
     onOpenLightSettings,
+    onOpenSystemMaintenance,
     onOpenManual,
-    onEmergencyStop
+    onEmergencyStop,
   } = props;
 
   return (
@@ -73,10 +73,13 @@ export function VisionPanel(props: VisionPanelProps) {
 
         <div className="vision-control-strip">
           <button className="surface-button" onClick={onOpenCutSettings}>
-            切割位设置
+            切割信息
           </button>
           <button className="surface-button" onClick={onOpenLightSettings}>
             灯光设置
+          </button>
+          <button className="surface-button" onClick={onOpenSystemMaintenance}>
+            设备维护
           </button>
           <button className={manualMode ? "surface-button warning" : "surface-button"} onClick={onOpenManual}>
             {manualMode ? "手动调试中" : "手动调试"}

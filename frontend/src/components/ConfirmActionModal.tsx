@@ -1,4 +1,4 @@
-import { ModalShell } from "./ModalShell";
+﻿import { ModalShell } from "./ModalShell";
 
 type ConfirmActionModalProps = {
   open: boolean;
@@ -11,15 +11,7 @@ type ConfirmActionModalProps = {
 };
 
 export function ConfirmActionModal(props: ConfirmActionModalProps) {
-  const {
-    open,
-    title,
-    description,
-    confirmLabel,
-    cancelLabel = "取消",
-    onConfirm,
-    onCancel
-  } = props;
+  const { open, title, description, confirmLabel, cancelLabel = "取消", onConfirm, onCancel } = props;
 
   if (!open) return null;
 

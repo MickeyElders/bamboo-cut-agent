@@ -15,6 +15,7 @@ from ..system_status import SystemStatusStore
 from ..video_webrtc import VideoWebRtcManager
 from ..ws_manager import WebSocketHub
 from .motor_control import MotorController
+from .system_control import SystemControlService
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class RuntimeServices:
         self.motor = MotorController()
         self.video = VideoWebRtcManager()
         self.system_status = SystemStatusStore()
+        self.system = SystemControlService()
         self.cut_config_store = CutConfigStore(path=os.getenv("CUT_CONFIG_PATH"))
         self.status_task: asyncio.Task | None = None
         self.canmv_bridge = CanMvBridge(

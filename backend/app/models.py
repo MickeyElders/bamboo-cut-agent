@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, Field
 from typing import List
 
 
@@ -89,3 +89,38 @@ class CutConfigUpdate(BaseModel):
     show_guide: bool | None = None
     min_hits: int | None = Field(default=None, ge=1, le=20)
     hold_ms: int | None = Field(default=None, ge=0, le=5000)
+
+
+class SystemActionRequest(BaseModel):
+    action: str
+
+
+class NetworkInterfaceStatus(BaseModel):
+    name: str
+    is_up: bool
+    ipv4: List[str] = Field(default_factory=list)
+    mac: str | None = None
+    kind: str = "unknown"
+
+
+class SystemMaintenanceSnapshot(BaseModel):
+    hostname: str
+    device_url: str
+    default_interface: str | None = None
+    wifi_ssid: str | None = None
+    network_online: bool = False
+    ip_addresses: List[str] = Field(default_factory=list)
+    interfaces: List[NetworkInterfaceStatus] = Field(default_factory=list)
+    disk_total_gb: float | None = None
+    disk_used_gb: float | None = None
+    disk_free_gb: float | None = None
+    disk_percent: float | None = None
+    supported_actions: List[str] = Field(default_factory=list)
+
+
+class SystemActionAck(BaseModel):
+    ok: bool = True
+    action: str
+    detail: str
+    timestamp: float
+
