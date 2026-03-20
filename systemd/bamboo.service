@@ -12,7 +12,7 @@ Environment=API_PORT=8000
 Environment=FRONTEND_HOST=0.0.0.0
 Environment=FRONTEND_PORT=5173
 Environment=BROWSER_HOST=127.0.0.1
-Environment=BROWSER_BIN=/usr/bin/chromium-browser
+Environment=BROWSER_BIN=/usr/bin/chromium
 Environment=CAGE_BIN=/usr/bin/cage
 Environment=CANMV_SERIAL_PORT=/dev/serial0
 Environment=CANMV_BAUDRATE=115200

@@ -340,7 +340,7 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 
 ```bash
 sudo apt update
-sudo apt install -y cage chromium-browser
+sudo apt install -y cage chromium
 ```
 
 ### Install services
