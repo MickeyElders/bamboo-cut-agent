@@ -161,19 +161,21 @@ export VIDEO_BITRATE_KBPS=2500
 
 ## Systemd Services
 
-仓库包含以下服务文件：
-- `systemd/bamboo-backend.service`
-- `systemd/bamboo-frontend.service`
-- `systemd/bamboo-kiosk.service`
-- `systemd/bamboo.env.example`
+仓库只保留一个统一服务文件：
+- `systemd/bamboo.service`
+
+统一服务启动链路：
+- `systemd`
+- `scripts/start-bamboo.sh`
+- FastAPI backend
+- Vite preview frontend
+- `Cage`
+- `Chromium --kiosk`
 
 树莓派安装方式：
 
 ```bash
-cp systemd/bamboo.env.example systemd/bamboo.env
 make install-service
-make install-frontend-service
-make install-kiosk-service
 ```
 
 如果要做纯 kiosk 设备：
@@ -183,7 +185,7 @@ sudo systemctl disable --now lightdm || true
 sudo systemctl set-default multi-user.target
 ```
 
-`bamboo-kiosk.service` 会在 tty1 上全屏启动 Chromium，并打开 `systemd/bamboo.env` 中配置的 `BROWSER_URL`。
+`bamboo.service` 会在 `tty1` 上拉起完整运行栈，并最终通过 `Cage + Chromium` 全屏显示 UI。
 
 常用命令：
 
@@ -191,13 +193,7 @@ sudo systemctl set-default multi-user.target
 make service-status
 make service-restart
 make service-logs
-make frontend-service-status
-make frontend-service-restart
-make frontend-service-logs
-make kiosk-service-status
-make kiosk-service-restart
-make kiosk-service-logs
-make deploy SERVICE=bamboo-backend.service FRONTEND_SERVICE=bamboo-frontend.service
+make deploy
 ```
 
 ## CanMV Communication
@@ -233,7 +229,7 @@ CanMV 可以通过 WebSocket 或串口向树莓派发送 AI 结果。
 - 不要连接 `5V`
 - 不要把两块板的 `3.3V` 电源轨直接互连
 
-共享运行配置：
+默认运行配置：
 
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
@@ -327,7 +323,7 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
 ## Notes
 
 - 工作灯由后端通过 Raspberry Pi 5 SPI 方式输出 `WS2812` 数据信号
-- 后端从 `systemd/bamboo.env` 读取 `LIGHT_GPIO_PIN`、`LIGHT_LED_COUNT`、`LIGHT_BRIGHTNESS`
+- 统一服务默认内置 `LIGHT_GPIO_PIN`、`LIGHT_LED_COUNT`、`LIGHT_BRIGHTNESS` 等运行参数
 - 当前优先使用 `rpi5-ws2812`，在非树莓派开发环境下降级为 no-op 驱动
 - 当前 UI 灯带行为：
   - 滑块设置 `0-16` 的待应用灯珠数量
@@ -335,3 +331,42 @@ python examples/canmv_ws_sender.py --host 127.0.0.1 --port 8000 --fps 10
   - `关灯` 立即关闭全部灯珠
 - 前端视频由后端 WebRTC 提供
 - 当 CanMV 上报 `canmv_status` 时，UI 会显示 CPU/KPU/内存/温度
+
+## Cage Kiosk Mode
+
+推荐在树莓派上使用 `Cage + Chromium` 运行全屏 UI，而不是完整桌面环境。
+
+### Install packages
+
+```bash
+sudo apt update
+sudo apt install -y cage chromium-browser
+```
+
+### Install services
+
+```bash
+cd ~/bamboo-cut-agent
+make install-service
+```
+
+### Disable desktop session
+
+如果设备只用于全屏运行 UI，可以关闭桌面管理器并切到多用户目标：
+
+```bash
+sudo systemctl disable --now lightdm || true
+sudo systemctl set-default multi-user.target
+sudo reboot
+```
+
+### Runtime behavior
+
+- `bamboo.service`：启动 backend、frontend，并在 `tty1` 上以 `Cage + Chromium` 显示全屏 UI
+
+### Debug commands
+
+```bash
+make service-status
+make service-logs
+```
