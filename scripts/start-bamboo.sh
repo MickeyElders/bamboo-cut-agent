@@ -44,13 +44,16 @@ frontend_pid=""
 cleanup() {
   local code=$?
   trap - EXIT INT TERM
+  echo "bamboo cleanup code=${code}" >&2
 
   if [[ -n "${frontend_pid}" ]] && kill -0 "${frontend_pid}" 2>/dev/null; then
+    echo "stopping frontend pid=${frontend_pid}" >&2
     kill "${frontend_pid}" 2>/dev/null || true
     wait "${frontend_pid}" 2>/dev/null || true
   fi
 
   if [[ -n "${backend_pid}" ]] && kill -0 "${backend_pid}" 2>/dev/null; then
+    echo "stopping backend pid=${backend_pid}" >&2
     kill "${backend_pid}" 2>/dev/null || true
     wait "${backend_pid}" 2>/dev/null || true
   fi
@@ -77,17 +80,24 @@ wait_for_port() {
 
 trap cleanup EXIT INT TERM
 
+echo "starting bamboo stack api=${API_HOST}:${API_PORT} frontend=${FRONTEND_HOST}:${FRONTEND_PORT} browser=${BROWSER_URL}" >&2
+
 cd "${ROOT_DIR}"
 "${PYBIN}" -m uvicorn backend.app.main:app --host "${API_HOST}" --port "${API_PORT}" &
 backend_pid=$!
+echo "backend pid=${backend_pid}" >&2
 
 wait_for_port "127.0.0.1" "${API_PORT}" "backend"
+echo "backend ready" >&2
 
 cd "${FRONTEND_DIR}"
 /usr/bin/npm run preview -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" &
 frontend_pid=$!
+echo "frontend pid=${frontend_pid}" >&2
 
 wait_for_port "127.0.0.1" "${FRONTEND_PORT}" "frontend"
+echo "frontend ready" >&2
+echo "launching cage=${CAGE_BIN} browser=${BROWSER_BIN}" >&2
 
 exec "${CAGE_BIN}" -- \
   "${BROWSER_BIN}" \
