@@ -16,21 +16,14 @@ function getDiskTone(percent?: number | null): SummaryTileTone {
 }
 
 function getDeviceStatus(maintenance: SystemMaintenanceSnapshot | null, videoConnected: boolean, aiConnected: boolean) {
-  if (!maintenance) {
-    return {
-      tone: "warning" as SummaryTileTone,
-      title: "设备信息未加载",
-      detail: "正在读取设备状态。",
-    };
-  }
-  if ((maintenance.disk_percent ?? 0) >= 90) {
+  if ((maintenance?.disk_percent ?? 0) >= 90) {
     return {
       tone: "danger" as SummaryTileTone,
       title: "存储空间紧张",
       detail: "建议尽快清理存储空间。",
     };
   }
-  if (!maintenance.network_online) {
+  if (maintenance && !maintenance.network_online) {
     return {
       tone: "warning" as SummaryTileTone,
       title: "网络连接受限",
@@ -54,7 +47,7 @@ function getDeviceStatus(maintenance: SystemMaintenanceSnapshot | null, videoCon
   return {
     tone: "success" as SummaryTileTone,
     title: "设备运行正常",
-    detail: "网络、画面、AI 与存储状态正常。",
+    detail: maintenance ? "网络、画面、AI 与存储状态正常。" : "实时状态正常，静态设备信息加载中。",
   };
 }
 
@@ -64,12 +57,15 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
 
   return (
     <section className="panel side-panel">
+      <div className={`panel-section-tag panel-section-tag-${device.tone}`}>
+        <span>系统总览</span>
+      </div>
       <div className="header">
         <h2>设备状态</h2>
       </div>
 
       <div className={`system-health-banner tone-${device.tone}`}>
-        <span>设备提示</span>
+        <span>实时状态</span>
         <strong>{device.title}</strong>
         <p>{device.detail}</p>
       </div>
@@ -128,11 +124,20 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
         tone={device.tone}
         items={[
           { label: "设备状态", value: device.title, tone: device.tone },
-          { label: "网络状态", value: maintenance?.network_online ? "在线" : "离线", tone: maintenance?.network_online ? "success" : "warning" },
+          {
+            label: "网络状态",
+            value: maintenance ? (maintenance.network_online ? "在线" : "离线") : "加载中",
+            tone: maintenance ? (maintenance.network_online ? "success" : "warning") : "default",
+          },
           { label: "画面状态", value: videoConnected ? "正常" : "异常", tone: videoConnected ? "success" : "warning" },
           { label: "AI 识别", value: aiConnected ? "在线" : "离线", tone: aiConnected ? "success" : "warning" },
         ]}
       />
+
+      <div className="summary-card">
+        <span>设备信息</span>
+        <strong>{maintenance ? "网络与存储信息已同步" : "正在同步网络与存储信息"}</strong>
+      </div>
 
       <SummaryTileGrid
         tone="info"

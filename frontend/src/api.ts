@@ -1,4 +1,4 @@
-import type { CommandAck, CutConfig, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
+﻿import type { CommandAck, CutConfig, EventItem, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -6,7 +6,7 @@ async function postCommand(path: string, body?: Record<string, unknown>) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {})
+    body: JSON.stringify(body ?? {}),
   });
 
   if (!res.ok) {
@@ -66,7 +66,7 @@ export function applyLightSettings(count: number, brightness: number, red: numbe
     brightness,
     red,
     green,
-    blue
+    blue,
   });
 }
 
@@ -76,6 +76,10 @@ export function switchLightOff() {
 
 export function signalEmergencyStop() {
   return postCommand("/api/control/emergency-stop");
+}
+
+export function resetFault() {
+  return postCommand("/api/control/fault-reset");
 }
 
 export async function fetchVideoConfig() {
@@ -98,7 +102,7 @@ export async function saveCutConfig(config: Partial<CutConfig>) {
   const res = await fetch(`${API_BASE}/api/cut-config`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config)
+    body: JSON.stringify(config),
   });
   if (!res.ok) {
     throw new Error("Failed to save cut config");
@@ -109,16 +113,39 @@ export async function saveCutConfig(config: Partial<CutConfig>) {
 export async function fetchSystemMaintenance() {
   const res = await fetch(`${API_BASE}/api/system/maintenance`);
   if (!res.ok) {
-    throw new Error("获取系统维护信息失败");
+    throw new Error("获取设备维护信息失败");
   }
   return (await res.json()) as SystemMaintenanceSnapshot;
+}
+
+type EventQuery = {
+  limit?: number;
+  category?: string;
+  level?: string;
+  since?: number;
+};
+
+export async function fetchSystemEvents(limitOrQuery: number | EventQuery = 100) {
+  const query: EventQuery = typeof limitOrQuery === "number" ? { limit: limitOrQuery } : limitOrQuery;
+  const params = new URLSearchParams();
+
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.category) params.set("category", query.category);
+  if (query.level) params.set("level", query.level);
+  if (query.since !== undefined) params.set("since", String(query.since));
+
+  const res = await fetch(`${API_BASE}/api/system/events?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error("获取运行事件失败");
+  }
+  return (await res.json()) as EventItem[];
 }
 
 export async function executeSystemAction(action: string) {
   const res = await fetch(`${API_BASE}/api/system/action`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action })
+    body: JSON.stringify({ action }),
   });
   if (!res.ok) {
     let detail = "";
@@ -128,7 +155,7 @@ export async function executeSystemAction(action: string) {
     } catch {
       detail = "";
     }
-    throw new Error(detail || `系统操作执行失败: ${action}`);
+    throw new Error(detail || `设备维护操作执行失败: ${action}`);
   }
   return (await res.json()) as SystemActionAck;
 }

@@ -4,9 +4,11 @@ import {
   engageClamp,
   executeSystemAction,
   fetchCutConfig,
+  fetchSystemEvents,
   fetchSystemMaintenance,
   fetchVideoConfig,
   releaseClamp,
+  resetFault,
   saveCutConfig,
   setAutoMode,
   setManualMode,
@@ -21,12 +23,13 @@ import {
 import { ConfirmActionModal } from "./components/ConfirmActionModal";
 import { CutSettingsModal } from "./components/CutSettingsModal";
 import { DeviceControlPanel } from "./components/DeviceControlPanel";
+import { EventHistoryModal } from "./components/EventHistoryModal";
 import { LightSettingsModal } from "./components/LightSettingsModal";
 import { ManualControlModal } from "./components/ManualControlModal";
 import { SystemMaintenanceModal } from "./components/SystemMaintenanceModal";
 import { SystemStatusStrip } from "./components/SystemStatusStrip";
 import { VisionPanel } from "./components/VisionPanel";
-import type { AiFrame, CutConfig, SystemMaintenanceSnapshot, SystemStatus, VideoConfig } from "./types";
+import type { AiFrame, CutConfig, EventItem, SystemMaintenanceSnapshot, SystemStatus, VideoConfig } from "./types";
 import { deriveRunState, formatRatio, getCutSummary, getLightSummary, hexToRgb } from "./utils/ui";
 
 const EMPTY_VIDEO: VideoConfig = {
@@ -121,6 +124,11 @@ export default function App() {
 
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
   const [systemMaintenance, setSystemMaintenance] = useState<SystemMaintenanceSnapshot | null>(null);
+  const [systemEvents, setSystemEvents] = useState<EventItem[]>([]);
+  const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [eventLoading, setEventLoading] = useState(false);
+  const [eventError, setEventError] = useState("");
+  const [faultResetConfirmOpen, setFaultResetConfirmOpen] = useState(false);
   const [videoConfig, setVideoConfig] = useState<VideoConfig>(EMPTY_VIDEO);
   const [cutConfig, setCutConfig] = useState<CutConfig>(DEFAULT_CUT_CONFIG);
   const [cutDirty, setCutDirty] = useState(false);
@@ -154,10 +162,7 @@ export default function App() {
   const runState = useMemo(() => deriveRunState(aiFrame, videoConnected), [aiFrame, videoConnected]);
   const connectionState = wsConnected ? "在线" : "离线";
   const cutSummary = useMemo(() => getCutSummary(cutConfig), [cutConfig]);
-  const lightSummary = useMemo(
-    () => getLightSummary(lightCount, lightBrightness, lightColor),
-    [lightCount, lightBrightness, lightColor],
-  );
+  const lightSummary = useMemo(() => getLightSummary(lightCount, lightBrightness, lightColor), [lightCount, lightBrightness, lightColor]);
 
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
@@ -183,6 +188,8 @@ export default function App() {
       .catch(() => {
         setCutError("获取切割配置失败");
       });
+
+    void loadSystemMaintenance();
   }, []);
 
   useEffect(() => {
@@ -354,10 +361,7 @@ export default function App() {
     const { red, green, blue } = hexToRgb(lightColor);
     setLightApplying(true);
     try {
-      await runControl(
-        () => applyLightSettings(lightCount, lightBrightness, red, green, blue),
-        () => setLightModalOpen(false),
-      );
+      await runControl(() => applyLightSettings(lightCount, lightBrightness, red, green, blue), () => setLightModalOpen(false));
     } finally {
       setLightApplying(false);
     }
@@ -370,9 +374,22 @@ export default function App() {
       setSystemMaintenance(snapshot);
       setSystemError("");
     } catch (error) {
-      setSystemError(error instanceof Error ? error.message : "设备维护操作执行失败");
+      setSystemError(error instanceof Error ? error.message : "获取设备维护信息失败");
     } finally {
       setSystemLoading(false);
+    }
+  }
+
+  async function loadSystemEvents() {
+    setEventLoading(true);
+    try {
+      const events = await fetchSystemEvents(120);
+      setSystemEvents(events);
+      setEventError("");
+    } catch (error) {
+      setEventError(error instanceof Error ? error.message : "获取运行事件失败");
+    } finally {
+      setEventLoading(false);
     }
   }
 
@@ -419,6 +436,11 @@ export default function App() {
   function handleOpenSystemMaintenance() {
     setSystemModalOpen(true);
     void loadSystemMaintenance();
+  }
+
+  function handleOpenEventHistory() {
+    setEventModalOpen(true);
+    void loadSystemEvents();
   }
 
   function handleRequestSystemAction(action: string) {
@@ -470,6 +492,12 @@ export default function App() {
           description: "设备将立即关机，请确认当前可以安全关机。",
           confirmLabel: "确认设备关机",
         };
+      case "fault_reset":
+        return {
+          title: "故障复位",
+          description: "将清除当前故障锁定，并恢复到可操作状态。请先确认现场已安全。",
+          confirmLabel: "确认故障复位",
+        };
       default:
         return {
           title: "设备维护",
@@ -517,7 +545,7 @@ export default function App() {
                 <strong>{formatRatio(cutConfig.tolerance_ratio_x)}</strong>
               </div>
               <div className="compact-info-row">
-                <span>鍛戒腑娆℃暟</span>
+                <span>命中次数</span>
                 <strong>{cutConfig.min_hits}</strong>
                 <span>保持时间</span>
                 <strong>{cutConfig.hold_ms} ms</strong>
@@ -527,17 +555,6 @@ export default function App() {
             <div className="summary-card summary-card-warning">
               <span>切割摘要</span>
               <strong>{cutSummary}</strong>
-            </div>
-
-            <div className="config-entry config-entry-warning" onClick={() => setCutModalOpen(true)} role="button" tabIndex={0}>
-              <div className="config-entry-copy">
-                <span className="config-entry-kicker">配置</span>
-                <strong>切割位设置</strong>
-                <p>位置、容差和触发条件。</p>
-              </div>
-              <div className="config-entry-action">
-                <span className="config-entry-label">打开设置</span>
-              </div>
             </div>
             {cutError ? <div className="error-text">{cutError}</div> : null}
           </section>
@@ -552,6 +569,8 @@ export default function App() {
             lightBrightness={lightBrightness}
             lightColor={lightColor}
             lightSummary={lightSummary}
+            onResetFault={() => setSystemConfirmAction("fault_reset")}
+            onOpenEventHistory={handleOpenEventHistory}
           />
         </aside>
       </main>
@@ -605,6 +624,15 @@ export default function App() {
         onAction={handleRequestSystemAction}
       />
 
+      <EventHistoryModal
+        open={eventModalOpen}
+        events={systemEvents}
+        loading={eventLoading}
+        error={eventError}
+        onClose={() => setEventModalOpen(false)}
+        onRefresh={() => void loadSystemEvents()}
+      />
+
       <ConfirmActionModal
         open={manualConfirmOpen}
         title="进入手动调试"
@@ -619,10 +647,15 @@ export default function App() {
         title={systemActionMeta.title}
         description={systemActionMeta.description}
         confirmLabel={systemActionMeta.confirmLabel}
-        onConfirm={() => void handleConfirmSystemAction()}
+        onConfirm={() => {
+          if (systemConfirmAction === "fault_reset") {
+            void runControl(resetFault, () => setSystemConfirmAction(null));
+            return;
+          }
+          void handleConfirmSystemAction();
+        }}
         onCancel={() => setSystemConfirmAction(null)}
       />
     </>
   );
 }
-

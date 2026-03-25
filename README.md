@@ -17,9 +17,9 @@
 - 控制命令全部是独立 HTTP 接口
 - 机器执行状态仅保留在后端控制器内部，不作为公共前端状态模型暴露
 
-`/ws/ui` 只推送两类消息：
-- `system_status`
-- `ai_frame`
+相关说明文档：
+- 现场 HMI：[docs/local-hmi.md](d:\github\bamboo-cut-agent\docs\local-hmi.md)
+- 设备对外契约：[docs/device-api.md](d:\github\bamboo-cut-agent\docs\device-api.md)
 
 ## Project Structure
 
@@ -58,60 +58,14 @@ npm run dev
 - UI：`http://localhost:5173`
 - Backend：`http://localhost:8000`
 
-## API Overview
+## Interface Guides
 
-### State APIs
+- 现场操作接口与通道说明：[docs/local-hmi.md](d:\github\bamboo-cut-agent\docs\local-hmi.md)
+- 外部集成接口说明：[docs/device-api.md](d:\github\bamboo-cut-agent\docs\device-api.md)
 
-- `GET /api/video/config`
-  - 一次性读取视频后端配置和采集设备信息
-- `GET /api/cut-config`
-  - 一次性读取切割位配置
-- `PUT /api/cut-config`
-  - 保存切割位配置，并同步下发给 CanMV
-
-### WebSocket Channels
-
-- `WS /ws/ui`
-  - UI 状态推送通道
-  - 消息类型：
-    - `system_status`
-    - `ai_frame`
-- `WS /ws/video`
-  - WebRTC 信令通道，前端通过它建立视频播放
-- `WS /ws/canmv`
-  - CanMV 可选 WebSocket 上报通道
-
-### Control APIs
-
-每个控制动作都是单独接口，统一返回：
-
-```json
-{
-  "ok": true,
-  "command": "feed_start",
-  "value": null,
-  "timestamp": 1710000000.123
-}
-```
-
-控制接口如下：
-- `POST /api/control/mode`
-  - `{"mode":"manual"}`
-  - `{"mode":"auto"}`
-- `POST /api/control/feed`
-  - `{"action":"start"}`
-  - `{"action":"stop"}`
-- `POST /api/control/clamp`
-  - `{"action":"engage"}`
-  - `{"action":"release"}`
-- `POST /api/control/cutter`
-  - `{"action":"down"}`
-  - `{"action":"up"}`
-- `POST /api/control/light`
-  - `{"action":"off"}`
-  - `{"action":"set_count","value":8}`
-- `POST /api/control/emergency-stop`
-  - `{}`
+建议阅读顺序：
+1. 先看现场运行与操作边界：[docs/local-hmi.md](d:\github\bamboo-cut-agent\docs\local-hmi.md)
+2. 再看设备对外集成契约：[docs/device-api.md](d:\github\bamboo-cut-agent\docs\device-api.md)
 
 ## Video Streaming
 

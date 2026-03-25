@@ -23,6 +23,17 @@ export function formatSeconds(value?: number | null) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
+export function formatTime(value?: number | null) {
+  if (value == null) return "-";
+  const date = new Date(value * 1000);
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export function formatRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }

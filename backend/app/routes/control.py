@@ -76,3 +76,8 @@ async def control_light(req: LightControlRequest) -> CommandAck:
 @router.post("/api/control/emergency-stop", response_model=CommandAck)
 async def control_emergency_stop() -> CommandAck:
     return await runtime.execute_control("emergency_stop")
+
+
+@router.post("/api/control/fault-reset", response_model=CommandAck)
+async def control_fault_reset() -> CommandAck:
+    return await runtime.execute_control("fault_reset")

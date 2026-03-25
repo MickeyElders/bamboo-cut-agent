@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import api_router, control_router, system_router, ws_router
+from .routes import api_router, control_router, device_router, system_router, ws_router
 from .services import runtime
 
 
@@ -20,6 +20,7 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router)
     app.include_router(control_router)
+    app.include_router(device_router)
     app.include_router(system_router)
     app.include_router(ws_router)
 

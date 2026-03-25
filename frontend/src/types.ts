@@ -54,15 +54,56 @@ export type JobStatus = {
   cycle_count: number;
   last_action: string;
   cut_request_active: boolean;
+  fault_active?: boolean;
+  fault_code?: string | null;
+  fault_detail?: string | null;
+};
+
+export type StartupCheck = {
+  key: string;
+  label: string;
+  status: string;
+  detail: string;
+};
+
+export type AlertItem = {
+  level: string;
+  code: string;
+  title: string;
+  detail: string;
+};
+
+export type EventItem = {
+  timestamp: number;
+  category?: string;
+  level: string;
+  code: string;
+  message: string;
+};
+
+export type InputSignal = {
+  key: string;
+  label: string;
+  pin?: number | null;
+  active?: boolean | null;
+  available: boolean;
+  pull_up: boolean;
+  active_high: boolean;
+  detail: string;
 };
 
 export type SystemStatus = {
+  schema_version?: string;
   raspberry_pi: PiSystemStatus;
   canmv_connected: boolean;
   canmv_last_seen_seconds?: number | null;
   canmv_fps?: number | null;
   canmv_status?: CanMvSystemStatus | null;
   job_status?: JobStatus | null;
+  input_signals?: InputSignal[];
+  startup_checks?: StartupCheck[];
+  alerts?: AlertItem[];
+  recent_events?: EventItem[];
 };
 
 export type CutConfig = {
@@ -101,5 +142,14 @@ export type SystemActionAck = {
   action: string;
   detail: string;
   timestamp: number;
+};
+
+export type DeviceIdentity = {
+  schema_version?: string;
+  local_uid: string;
+  hostname: string;
+  model: string;
+  hardware_revision?: string | null;
+  software_version: string;
 };
 

@@ -64,15 +64,56 @@ class JobStatus(BaseModel):
     cycle_count: int
     last_action: str
     cut_request_active: bool
+    fault_active: bool = False
+    fault_code: str | None = None
+    fault_detail: str | None = None
+
+
+class StartupCheck(BaseModel):
+    key: str
+    label: str
+    status: str
+    detail: str
+
+
+class AlertItem(BaseModel):
+    level: str
+    code: str
+    title: str
+    detail: str
+
+
+class EventItem(BaseModel):
+    timestamp: float
+    category: str = "runtime"
+    level: str
+    code: str
+    message: str
+
+
+class InputSignal(BaseModel):
+    key: str
+    label: str
+    pin: int | None = None
+    active: bool | None = None
+    available: bool = False
+    pull_up: bool = True
+    active_high: bool = False
+    detail: str
 
 
 class SystemStatus(BaseModel):
+    schema_version: str = "device-status.v1"
     raspberry_pi: PiSystemStatus
     canmv_connected: bool
     canmv_last_seen_seconds: float | None = None
     canmv_fps: float | None = None
     canmv_status: CanMvSystemStatus | None = None
     job_status: JobStatus | None = None
+    input_signals: List[InputSignal] = Field(default_factory=list)
+    startup_checks: List[StartupCheck] = Field(default_factory=list)
+    alerts: List[AlertItem] = Field(default_factory=list)
+    recent_events: List[EventItem] = Field(default_factory=list)
 
 
 class CutConfig(BaseModel):
@@ -123,4 +164,49 @@ class SystemActionAck(BaseModel):
     action: str
     detail: str
     timestamp: float
+
+
+class DeviceIdentity(BaseModel):
+    schema_version: str = "device-api.v1"
+    local_uid: str
+    hostname: str
+    model: str
+    hardware_revision: str | None = None
+    software_version: str
+
+
+class DeviceCapability(BaseModel):
+    key: str
+    label: str
+    supported: bool = True
+    detail: str = ""
+
+
+class DeviceCommandParameter(BaseModel):
+    name: str
+    type: str
+    required: bool = False
+    min: int | float | None = None
+    max: int | float | None = None
+    detail: str = ""
+
+
+class DeviceCommandDescriptor(BaseModel):
+    command: str
+    label: str
+    category: str
+    dangerous: bool = False
+    manual_only: bool = False
+    detail: str = ""
+    parameters: List[DeviceCommandParameter] = Field(default_factory=list)
+
+
+class DeviceCapabilities(BaseModel):
+    capabilities: List[DeviceCapability] = Field(default_factory=list)
+    commands: List[DeviceCommandDescriptor] = Field(default_factory=list)
+
+
+class DeviceCommandRequest(BaseModel):
+    command: str
+    params: dict[str, object] = Field(default_factory=dict)
 
