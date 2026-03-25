@@ -1,4 +1,4 @@
-import type { SystemMaintenanceSnapshot, SystemStatus } from "../types";
+ï»¿import type { SystemMaintenanceSnapshot, SystemStatus } from "../types";
 import { formatDisk, formatPercent, formatSeconds, formatTemp } from "../utils/ui";
 
 type SystemStatusStripProps = {
@@ -20,35 +20,35 @@ function getDeviceStatus(maintenance: SystemMaintenanceSnapshot | null, videoCon
   if ((maintenance?.disk_percent ?? 0) >= 90) {
     return {
       tone: "danger" as StatusTone,
-      title: "´æ´¢¿Õ¼ä½ôÕÅ",
-      detail: "½¨Òé¾¡¿ìÇåÀí´æ´¢¿Õ¼ä¡£",
+      title: "å­˜å‚¨ç©ºé—´ç´§å¼ ",
+      detail: "å»ºè®®å°½å¿«æ¸…ç†å­˜å‚¨ç©ºé—´ã€‚",
     };
   }
   if (maintenance && !maintenance.network_online) {
     return {
       tone: "warning" as StatusTone,
-      title: "ÍøÂçÁ¬½ÓÊÜÏŞ",
-      detail: "µ±Ç°Ã»ÓĞ¿ÉÓÃ IP£¬Ô¶³Ì·ÃÎÊ»áÊÜÓ°Ïì¡£",
+      title: "ç½‘ç»œè¿æ¥å—é™",
+      detail: "å½“å‰æ²¡æœ‰å¯ç”¨ IPï¼Œè¿œç¨‹è®¿é—®ä¼šå—å½±å“ã€‚",
     };
   }
   if (!videoConnected) {
     return {
       tone: "warning" as StatusTone,
-      title: "»­ÃæÁ´Â·Òì³£",
-      detail: "Çë¼ì²éÊÓÆµ²É¼¯Óë´«ÊäÁ´Â·¡£",
+      title: "ç”»é¢é“¾è·¯å¼‚å¸¸",
+      detail: "è¯·æ£€æŸ¥è§†é¢‘é‡‡é›†ä¸ä¼ è¾“é“¾è·¯ã€‚",
     };
   }
   if (!aiConnected) {
     return {
       tone: "warning" as StatusTone,
-      title: "AI Ê¶±ğÀëÏß",
-      detail: "CanMV ÔİÎ´ÔÚÏß£¬Ê¶±ğÓëÇĞ¸î´¥·¢²»¿ÉÓÃ¡£",
+      title: "AI è¯†åˆ«ç¦»çº¿",
+      detail: "CanMV æš‚æœªåœ¨çº¿ï¼Œè¯†åˆ«ä¸åˆ‡å‰²è§¦å‘ä¸å¯ç”¨ã€‚",
     };
   }
   return {
     tone: "success" as StatusTone,
-    title: "Éè±¸ÔËĞĞÕı³£",
-    detail: maintenance ? "ÍøÂç¡¢»­Ãæ¡¢AI Óë´æ´¢×´Ì¬Õı³£¡£" : "ÊµÊ±×´Ì¬Õı³££¬¾²Ì¬Éè±¸ĞÅÏ¢¼ÓÔØÖĞ¡£",
+    title: "è®¾å¤‡è¿è¡Œæ­£å¸¸",
+    detail: maintenance ? "ç½‘ç»œã€ç”»é¢ã€AI ä¸å­˜å‚¨çŠ¶æ€æ­£å¸¸ã€‚" : "å®æ—¶çŠ¶æ€æ­£å¸¸ï¼Œé™æ€è®¾å¤‡ä¿¡æ¯åŠ è½½ä¸­ã€‚",
   };
 }
 
@@ -61,34 +61,36 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
   const device = getDeviceStatus(maintenance, videoConnected, aiConnected);
   const networkOnline = maintenance?.network_online ?? false;
   const primaryIp = maintenance?.ip_addresses?.[0] ?? "-";
-  const wifi = maintenance?.wifi_ssid ?? "Î´Á¬½Ó";
+  const wifi = maintenance?.wifi_ssid ?? "æœªè¿æ¥";
   const storage = formatDisk(maintenance?.disk_used_gb, maintenance?.disk_total_gb, maintenance?.disk_percent);
-  const syncLabel = maintenance ? "ÒÑÍ¬²½" : "¼ÓÔØÖĞ";
+  const syncLabel = maintenance ? "å·²åŒæ­¥" : "åŠ è½½ä¸­";
 
   return (
     <section className="panel side-panel">
       <div className={`panel-section-tag panel-section-tag-${device.tone}`}>
-        <span>ÏµÍ³×ÜÀÀ</span>
+        <span>ç³»ç»Ÿæ€»è§ˆ</span>
       </div>
       <div className="header">
-        <h2>Éè±¸×´Ì¬</h2>
+        <h2>è®¾å¤‡çŠ¶æ€</h2>
       </div>
 
       <div className="status-island-stack">
         <article className={`status-island status-island-hero tone-${device.tone}`}>
           <div className="status-island-head">
             <div>
-              <span className="status-island-kicker">ÊµÊ±½¡¿µ</span>
+              <span className="status-island-kicker">å®æ—¶å¥åº·</span>
               <strong>{device.title}</strong>
             </div>
             <span className={`status-dot-pill tone-${device.tone}`}>{syncLabel}</span>
           </div>
           <p className="status-island-copy">{device.detail}</p>
           <div className="status-island-pills">
-            <span className={`status-chip ${chipToneClass(device.tone)}`}>ÏµÍ³ {device.title}</span>
-            <span className={`status-chip ${chipToneClass(networkOnline ? "success" : maintenance ? "warning" : "default")}`}>ÍøÂç {maintenance ? (networkOnline ? "ÔÚÏß" : "ÀëÏß") : "¼ÓÔØÖĞ"}</span>
-            <span className={`status-chip ${chipToneClass(videoConnected ? "success" : "warning")}`}>ÊÓÆµ {videoConnected ? "Õı³£" : "Òì³£"}</span>
-            <span className={`status-chip ${chipToneClass(aiConnected ? "success" : "warning")}`}>AI {aiConnected ? "ÔÚÏß" : "ÀëÏß"}</span>
+            <span className={`status-chip ${chipToneClass(device.tone)}`}>ç³»ç»Ÿ {device.title}</span>
+            <span className={`status-chip ${chipToneClass(networkOnline ? "success" : maintenance ? "warning" : "default")}`}>
+              ç½‘ç»œ {maintenance ? (networkOnline ? "åœ¨çº¿" : "ç¦»çº¿") : "åŠ è½½ä¸­"}
+            </span>
+            <span className={`status-chip ${chipToneClass(videoConnected ? "success" : "warning")}`}>è§†é¢‘ {videoConnected ? "æ­£å¸¸" : "å¼‚å¸¸"}</span>
+            <span className={`status-chip ${chipToneClass(aiConnected ? "success" : "warning")}`}>AI {aiConnected ? "åœ¨çº¿" : "ç¦»çº¿"}</span>
           </div>
         </article>
 
@@ -99,7 +101,7 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
                 <span className="status-island-kicker">Raspberry Pi</span>
                 <strong>{status.raspberry_pi.hostname}</strong>
               </div>
-              <span className="status-dot-pill tone-info">Ö÷¿Ø</span>
+              <span className="status-dot-pill tone-info">ä¸»æ§</span>
             </div>
             <div className="status-island-metrics compact">
               <div className="status-metric-pill">
@@ -107,11 +109,11 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
                 <strong>{formatPercent(status.raspberry_pi.cpu_percent)}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>ÄÚ´æ</span>
+                <span>å†…å­˜</span>
                 <strong>{formatPercent(status.raspberry_pi.memory_percent)}</strong>
               </div>
               <div className="status-metric-pill status-metric-pill-wide">
-                <span>ÔËĞĞÊ±³¤</span>
+                <span>è¿è¡Œæ—¶é•¿</span>
                 <strong>{formatSeconds(status.raspberry_pi.uptime_seconds)}</strong>
               </div>
             </div>
@@ -121,9 +123,9 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
             <div className="status-island-head compact">
               <div>
                 <span className="status-island-kicker">CanMV</span>
-                <strong>{aiConnected ? "Ê¶±ğÔÚÏß" : "Ê¶±ğÀëÏß"}</strong>
+                <strong>{aiConnected ? "è¯†åˆ«åœ¨çº¿" : "è¯†åˆ«ç¦»çº¿"}</strong>
               </div>
-              <span className={`status-dot-pill tone-${aiConnected ? "success" : "warning"}`}>{aiConnected ? "ÔÚÏß" : "ÀëÏß"}</span>
+              <span className={`status-dot-pill tone-${aiConnected ? "success" : "warning"}`}>{aiConnected ? "åœ¨çº¿" : "ç¦»çº¿"}</span>
             </div>
             <div className="status-island-metrics compact">
               <div className="status-metric-pill">
@@ -135,11 +137,11 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
                 <strong>{status.canmv_fps?.toFixed(1) ?? "-"}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>ÎÂ¶È</span>
+                <span>æ¸©åº¦</span>
                 <strong>{formatTemp(status.canmv_status?.temperature_c)}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>×î½üÉÏ±¨</span>
+                <span>æœ€è¿‘ä¸ŠæŠ¥</span>
                 <strong>{formatSeconds(status.canmv_last_seen_seconds)}</strong>
               </div>
             </div>
@@ -148,7 +150,7 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
 
         <div className="status-island-grid status-island-grid-pills">
           <article className="status-pill-island">
-            <span>µ±Ç° IP</span>
+            <span>å½“å‰ IP</span>
             <strong>{primaryIp}</strong>
           </article>
           <article className="status-pill-island">
@@ -156,11 +158,11 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
             <strong>{wifi}</strong>
           </article>
           <article className="status-pill-island">
-            <span>Ä¬ÈÏ½Ó¿Ú</span>
+            <span>é»˜è®¤æ¥å£</span>
             <strong>{maintenance?.default_interface ?? "-"}</strong>
           </article>
           <article className="status-pill-island">
-            <span>Ê£Óà¿Õ¼ä</span>
+            <span>å‰©ä½™ç©ºé—´</span>
             <strong>{maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB`}</strong>
           </article>
         </div>
@@ -168,10 +170,10 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
         <article className="status-island status-island-footer">
           <div className="status-island-head compact">
             <div>
-              <span className="status-island-kicker">Éè±¸ĞÅÏ¢</span>
-              <strong>{maintenance ? "ÍøÂçÓë´æ´¢ĞÅÏ¢ÒÑÍ¬²½" : "ÕıÔÚÍ¬²½ÍøÂçÓë´æ´¢ĞÅÏ¢"}</strong>
+              <span className="status-island-kicker">è®¾å¤‡ä¿¡æ¯</span>
+              <strong>{maintenance ? "ç½‘ç»œä¸å­˜å‚¨ä¿¡æ¯å·²åŒæ­¥" : "æ­£åœ¨åŒæ­¥ç½‘ç»œä¸å­˜å‚¨ä¿¡æ¯"}</strong>
             </div>
-            <span className={`status-dot-pill tone-${getDiskTone(maintenance?.disk_percent)}`}>´æ´¢</span>
+            <span className={`status-dot-pill tone-${getDiskTone(maintenance?.disk_percent)}`}>å­˜å‚¨</span>
           </div>
           <p className="status-island-copy">{storage}</p>
         </article>

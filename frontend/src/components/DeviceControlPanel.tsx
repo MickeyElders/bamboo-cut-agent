@@ -1,4 +1,4 @@
-import type { AiFrame, SystemStatus } from "../types";
+ï»¿import type { AiFrame, SystemStatus } from "../types";
 import { formatAutoState, formatLastAction, formatTime, type RunState } from "../utils/ui";
 
 type DeviceControlPanelProps = {
@@ -38,27 +38,27 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
   return (
     <section className="panel side-panel">
       <div className={`panel-section-tag ${jobStatus?.fault_active ? "panel-section-tag-danger" : manualMode ? "panel-section-tag-warning" : "panel-section-tag-accent"}`}>
-        <span>ÔËĞĞ¼à¿Ø</span>
+        <span>è¿è¡Œç›‘æ§</span>
       </div>
       <div className="header">
-        <h2>ÔËĞĞĞÅÏ¢</h2>
+        <h2>è¿è¡Œä¿¡æ¯</h2>
       </div>
 
       <div className="status-island-stack">
         <article className={`status-island status-island-hero tone-${runTone}`}>
           <div className="status-island-head">
             <div>
-              <span className="status-island-kicker">µ±Ç°ÔËĞĞ</span>
-              <strong>{jobStatus?.fault_active ? "±£»¤Í£»ú" : runState.label}</strong>
+              <span className="status-island-kicker">å½“å‰è¿è¡Œ</span>
+              <strong>{jobStatus?.fault_active ? "ä¿æŠ¤åœæœº" : runState.label}</strong>
             </div>
-            <span className={`status-dot-pill tone-${manualMode ? "warning" : "success"}`}>{manualMode ? "ÊÖ¶¯" : "×Ô¶¯"}</span>
+            <span className={`status-dot-pill tone-${manualMode ? "warning" : "success"}`}>{manualMode ? "æ‰‹åŠ¨" : "è‡ªåŠ¨"}</span>
           </div>
-          <p className="status-island-copy">{jobStatus?.fault_active ? (jobStatus.fault_detail ?? "¼ì²âµ½¹ÊÕÏ£¬µÈ´ıÈË¹¤´¦Àí¡£") : runState.detail}</p>
+          <p className="status-island-copy">{jobStatus?.fault_active ? (jobStatus.fault_detail ?? "æ£€æµ‹åˆ°æ•…éšœï¼Œç­‰å¾…äººå·¥å¤„ç†ã€‚") : runState.detail}</p>
           <div className="status-island-pills">
-            <span className={`status-chip status-chip-${aiFrame.detections.length > 0 ? "success" : "default"}`}>Ê¶±ğ {aiFrame.detections.length > 0 ? "ÔËĞĞÖĞ" : "´ı»ú"}</span>
-            <span className={`status-chip status-chip-${aiFrame.cut_request ? "danger" : "info"}`}>ÇĞ¸îÎ» {aiFrame.cut_request ? "µ½Î»" : "¼à²âÖĞ"}</span>
-            <span className={`status-chip status-chip-${videoConnected ? "success" : "warning"}`}>»­Ãæ {videoConnected ? "Õı³£" : "¶Ï¿ª"}</span>
-            <span className={`status-chip status-chip-${jobStatus?.fault_active ? "danger" : "success"}`}>±£»¤ {jobStatus?.fault_active ? "¹ÊÕÏËø¶¨" : "Õı³£"}</span>
+            <span className={`status-chip status-chip-${aiFrame.detections.length > 0 ? "success" : "default"}`}>è¯†åˆ« {aiFrame.detections.length > 0 ? "è¿è¡Œä¸­" : "å¾…æœº"}</span>
+            <span className={`status-chip status-chip-${aiFrame.cut_request ? "danger" : "info"}`}>åˆ‡å‰²ä½ {aiFrame.cut_request ? "åˆ°ä½" : "ç›‘æµ‹ä¸­"}</span>
+            <span className={`status-chip status-chip-${videoConnected ? "success" : "warning"}`}>ç”»é¢ {videoConnected ? "æ­£å¸¸" : "æ–­å¼€"}</span>
+            <span className={`status-chip status-chip-${jobStatus?.fault_active ? "danger" : "success"}`}>ä¿æŠ¤ {jobStatus?.fault_active ? "æ•…éšœé”å®š" : "æ­£å¸¸"}</span>
           </div>
         </article>
 
@@ -66,25 +66,25 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
           <article className="status-island status-island-subsystem">
             <div className="status-island-head compact">
               <div>
-                <span className="status-island-kicker">Á÷³Ì×´Ì¬</span>
+                <span className="status-island-kicker">æµç¨‹çŠ¶æ€</span>
                 <strong>{formatAutoState(jobStatus?.auto_state)}</strong>
               </div>
             </div>
             <div className="status-island-metrics compact">
               <div className="status-metric-pill">
-                <span>×î½ü¶¯×÷</span>
+                <span>æœ€è¿‘åŠ¨ä½œ</span>
                 <strong>{formatLastAction(jobStatus?.last_action)}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>ÀÛ¼ÆÑ­»·</span>
+                <span>ç´¯è®¡å¾ªç¯</span>
                 <strong>{jobStatus?.cycle_count ?? 0}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>ÇĞ¸îĞÅºÅ</span>
-                <strong>{jobStatus?.cut_request_active ? "»îÔ¾" : "¿ÕÏĞ"}</strong>
+                <span>åˆ‡å‰²ä¿¡å·</span>
+                <strong>{jobStatus?.cut_request_active ? "æ´»è·ƒ" : "ç©ºé—²"}</strong>
               </div>
               <div className="status-metric-pill">
-                <span>Ä¿±êÊı</span>
+                <span>ç›®æ ‡æ•°</span>
                 <strong>{aiFrame.detections.length}</strong>
               </div>
             </div>
@@ -93,15 +93,15 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
           <article className={`status-island status-island-subsystem ${leadAlert ? "status-island-alert" : "status-island-subsystem-accent"}`}>
             <div className="status-island-head compact">
               <div>
-                <span className="status-island-kicker">¸æ¾¯ÓëµÆ¹â</span>
-                <strong>{leadAlert ? leadAlert.title : "Î´·¢ÏÖ»î¶¯¸æ¾¯"}</strong>
+                <span className="status-island-kicker">å‘Šè­¦ä¸ç¯å…‰</span>
+                <strong>{leadAlert ? leadAlert.title : "æœªå‘ç°æ´»åŠ¨å‘Šè­¦"}</strong>
               </div>
-              <span className={`status-dot-pill tone-${leadAlert ? "warning" : "info"}`}>{leadAlert ? leadAlert.level : "ÎÈ¶¨"}</span>
+              <span className={`status-dot-pill tone-${leadAlert ? "warning" : "info"}`}>{leadAlert ? leadAlert.level : "ç¨³å®š"}</span>
             </div>
             <p className="status-island-copy">{leadAlert ? leadAlert.detail : lightSummary}</p>
             <div className="status-island-pills">
-              <span className="status-chip status-chip-info">ÁÁµÆ {lightCount}/16</span>
-              <span className="status-chip status-chip-info">ÁÁ¶È {lightBrightness}/255</span>
+              <span className="status-chip status-chip-info">äº®ç¯ {lightCount}/16</span>
+              <span className="status-chip status-chip-info">äº®åº¦ {lightBrightness}/255</span>
               <span className="status-chip status-chip-wide status-chip-info">
                 <span className="light-color-chip" style={{ backgroundColor: lightColor }} />
                 {lightColor.toUpperCase()}
@@ -114,37 +114,37 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
           <article className="status-island status-island-alert tone-danger">
             <div className="status-island-head compact">
               <div>
-                <span className="status-island-kicker">¹ÊÕÏĞÅÏ¢</span>
-                <strong>{jobStatus.fault_code ?? "Î´Ìá¹©´úÂë"}</strong>
+                <span className="status-island-kicker">æ•…éšœä¿¡æ¯</span>
+                <strong>{jobStatus.fault_code ?? "æœªæä¾›ä»£ç "}</strong>
               </div>
-              <span className="status-dot-pill tone-danger">Ëø¶¨ÖĞ</span>
+              <span className="status-dot-pill tone-danger">é”å®šä¸­</span>
             </div>
-            <p className="status-island-copy">{jobStatus.fault_detail ?? "µÈ´ıÈË¹¤È·ÈÏÓë¸´Î»¡£"}</p>
+            <p className="status-island-copy">{jobStatus.fault_detail ?? "ç­‰å¾…äººå·¥ç¡®è®¤ä¸å¤ä½ã€‚"}</p>
           </article>
         ) : null}
 
         <div className="status-island-grid status-island-grid-actions">
           <button className="surface-button secondary-action-button" onClick={onOpenEventHistory}>
-            ²é¿´ÊÂ¼şÀúÊ·
+            æŸ¥çœ‹äº‹ä»¶å†å²
           </button>
           {jobStatus?.fault_active ? (
             <button className="surface-button warning fault-action-button" onClick={onResetFault}>
-              ¹ÊÕÏ¸´Î»
+              æ•…éšœå¤ä½
             </button>
           ) : null}
         </div>
 
         <div className="status-island-grid status-island-grid-pills">
-          {(startupChecks.length > 0 ? startupChecks : [{ label: "Æô¶¯×Ô¼ì", detail: "ÔİÎŞÊı¾İ", status: "default" }]).slice(0, 2).map((item) => (
+          {(startupChecks.length > 0 ? startupChecks : [{ label: "å¯åŠ¨è‡ªæ£€", detail: "æš‚æ— æ•°æ®", status: "default" }]).slice(0, 2).map((item) => (
             <article className="status-pill-island" key={item.label}>
               <span>{item.label}</span>
               <strong>{item.detail}</strong>
             </article>
           ))}
-          {(inputSignals.length > 0 ? inputSignals : [{ label: "ÊäÈë·´À¡", detail: "Î´ÅäÖÃ", available: false, active: null }]).slice(0, 2).map((item) => (
+          {(inputSignals.length > 0 ? inputSignals : [{ label: "è¾“å…¥åé¦ˆ", detail: "æœªé…ç½®", available: false, active: null }]).slice(0, 2).map((item) => (
             <article className="status-pill-island" key={item.label}>
               <span>{item.label}</span>
-              <strong>{item.available ? (item.active ? "´¥·¢" : "Õı³£") : item.detail}</strong>
+              <strong>{item.available ? (item.active ? "è§¦å‘" : "æ­£å¸¸") : item.detail}</strong>
             </article>
           ))}
         </div>
@@ -152,8 +152,8 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
         <article className="status-island status-island-footer">
           <div className="status-island-head compact">
             <div>
-              <span className="status-island-kicker">×î½üÊÂ¼ş</span>
-              <strong>{recentEvents.length > 0 ? `${recentEvents.length} ÌõÔËĞĞ¼ÇÂ¼` : "ÔİÎŞÔËĞĞ¼ÇÂ¼"}</strong>
+              <span className="status-island-kicker">æœ€è¿‘äº‹ä»¶</span>
+              <strong>{recentEvents.length > 0 ? `${recentEvents.length} æ¡è¿è¡Œè®°å½•` : "æš‚æ— è¿è¡Œè®°å½•"}</strong>
             </div>
           </div>
           {recentEvents.length > 0 ? (
@@ -166,7 +166,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
               ))}
             </div>
           ) : (
-            <p className="status-island-copy">µ±Ç°Ã»ÓĞĞÂµÄÔËĞĞÊÂ¼ş¡£</p>
+            <p className="status-island-copy">å½“å‰æ²¡æœ‰æ–°çš„è¿è¡Œäº‹ä»¶ã€‚</p>
           )}
         </article>
       </div>
