@@ -1,6 +1,5 @@
-ï»¿import type { SystemMaintenanceSnapshot, SystemStatus } from "../types";
+import type { SystemMaintenanceSnapshot, SystemStatus } from "../types";
 import { formatDisk, formatPercent, formatSeconds, formatTemp } from "../utils/ui";
-import { SummaryTileGrid, type SummaryTileTone } from "./SummaryTileGrid";
 
 type SystemStatusStripProps = {
   status: SystemStatus;
@@ -8,7 +7,9 @@ type SystemStatusStripProps = {
   videoConnected: boolean;
 };
 
-function getDiskTone(percent?: number | null): SummaryTileTone {
+type StatusTone = "default" | "info" | "success" | "warning" | "danger";
+
+function getDiskTone(percent?: number | null): StatusTone {
   if (percent == null) return "default";
   if (percent >= 90) return "danger";
   if (percent >= 75) return "warning";
@@ -18,155 +19,163 @@ function getDiskTone(percent?: number | null): SummaryTileTone {
 function getDeviceStatus(maintenance: SystemMaintenanceSnapshot | null, videoConnected: boolean, aiConnected: boolean) {
   if ((maintenance?.disk_percent ?? 0) >= 90) {
     return {
-      tone: "danger" as SummaryTileTone,
-      title: "å­˜å‚¨ç©ºé—´ç´§å¼ ",
-      detail: "å»ºè®®å°½å¿«æ¸…ç†å­˜å‚¨ç©ºé—´ã€‚",
+      tone: "danger" as StatusTone,
+      title: "´æ´¢¿Õ¼ä½ôÕÅ",
+      detail: "½¨Òé¾¡¿ìÇåÀí´æ´¢¿Õ¼ä¡£",
     };
   }
   if (maintenance && !maintenance.network_online) {
     return {
-      tone: "warning" as SummaryTileTone,
-      title: "ç½‘ç»œè¿æ¥å—é™",
-      detail: "å½“å‰æ²¡æœ‰å¯ç”¨ IPï¼Œè¿œç¨‹è®¿é—®ä¼šå—å½±å“ã€‚",
+      tone: "warning" as StatusTone,
+      title: "ÍøÂçÁ¬½ÓÊÜÏŞ",
+      detail: "µ±Ç°Ã»ÓĞ¿ÉÓÃ IP£¬Ô¶³Ì·ÃÎÊ»áÊÜÓ°Ïì¡£",
     };
   }
   if (!videoConnected) {
     return {
-      tone: "warning" as SummaryTileTone,
-      title: "ç”»é¢é“¾è·¯å¼‚å¸¸",
-      detail: "è¯·æ£€æŸ¥è§†é¢‘é‡‡é›†ä¸ä¼ è¾“é“¾è·¯ã€‚",
+      tone: "warning" as StatusTone,
+      title: "»­ÃæÁ´Â·Òì³£",
+      detail: "Çë¼ì²éÊÓÆµ²É¼¯Óë´«ÊäÁ´Â·¡£",
     };
   }
   if (!aiConnected) {
     return {
-      tone: "warning" as SummaryTileTone,
-      title: "AI è¯†åˆ«ç¦»çº¿",
-      detail: "CanMV æš‚æœªåœ¨çº¿ï¼Œè¯†åˆ«ä¸åˆ‡å‰²è§¦å‘ä¸å¯ç”¨ã€‚",
+      tone: "warning" as StatusTone,
+      title: "AI Ê¶±ğÀëÏß",
+      detail: "CanMV ÔİÎ´ÔÚÏß£¬Ê¶±ğÓëÇĞ¸î´¥·¢²»¿ÉÓÃ¡£",
     };
   }
   return {
-    tone: "success" as SummaryTileTone,
-    title: "è®¾å¤‡è¿è¡Œæ­£å¸¸",
-    detail: maintenance ? "ç½‘ç»œã€ç”»é¢ã€AI ä¸å­˜å‚¨çŠ¶æ€æ­£å¸¸ã€‚" : "å®æ—¶çŠ¶æ€æ­£å¸¸ï¼Œé™æ€è®¾å¤‡ä¿¡æ¯åŠ è½½ä¸­ã€‚",
+    tone: "success" as StatusTone,
+    title: "Éè±¸ÔËĞĞÕı³£",
+    detail: maintenance ? "ÍøÂç¡¢»­Ãæ¡¢AI Óë´æ´¢×´Ì¬Õı³£¡£" : "ÊµÊ±×´Ì¬Õı³££¬¾²Ì¬Éè±¸ĞÅÏ¢¼ÓÔØÖĞ¡£",
   };
+}
+
+function chipToneClass(tone: StatusTone) {
+  return `status-chip-${tone}`;
 }
 
 export function SystemStatusStrip({ status, maintenance, videoConnected }: SystemStatusStripProps) {
   const aiConnected = status.canmv_connected;
   const device = getDeviceStatus(maintenance, videoConnected, aiConnected);
+  const networkOnline = maintenance?.network_online ?? false;
+  const primaryIp = maintenance?.ip_addresses?.[0] ?? "-";
+  const wifi = maintenance?.wifi_ssid ?? "Î´Á¬½Ó";
+  const storage = formatDisk(maintenance?.disk_used_gb, maintenance?.disk_total_gb, maintenance?.disk_percent);
+  const syncLabel = maintenance ? "ÒÑÍ¬²½" : "¼ÓÔØÖĞ";
 
   return (
     <section className="panel side-panel">
       <div className={`panel-section-tag panel-section-tag-${device.tone}`}>
-        <span>ç³»ç»Ÿæ€»è§ˆ</span>
+        <span>ÏµÍ³×ÜÀÀ</span>
       </div>
       <div className="header">
-        <h2>è®¾å¤‡çŠ¶æ€</h2>
+        <h2>Éè±¸×´Ì¬</h2>
       </div>
 
-      <div className={`system-health-banner tone-${device.tone}`}>
-        <span>å®æ—¶çŠ¶æ€</span>
-        <strong>{device.title}</strong>
-        <p>{device.detail}</p>
-      </div>
-
-      <div className="system-strip">
-        <article className="system-mini-card">
-          <div className="system-mini-head">
-            <h3>æ ‘è“æ´¾</h3>
-            <span className="badge ok">{status.raspberry_pi.hostname}</span>
+      <div className="status-island-stack">
+        <article className={`status-island status-island-hero tone-${device.tone}`}>
+          <div className="status-island-head">
+            <div>
+              <span className="status-island-kicker">ÊµÊ±½¡¿µ</span>
+              <strong>{device.title}</strong>
+            </div>
+            <span className={`status-dot-pill tone-${device.tone}`}>{syncLabel}</span>
           </div>
-
-          <div className="system-mini-metrics">
-            <div className="system-mini-metric">
-              <span>CPU</span>
-              <strong>{formatPercent(status.raspberry_pi.cpu_percent)}</strong>
-            </div>
-            <div className="system-mini-metric">
-              <span>å†…å­˜</span>
-              <strong>{formatPercent(status.raspberry_pi.memory_percent)}</strong>
-            </div>
-            <div className="system-mini-metric system-mini-metric-wide">
-              <span>è¿è¡Œæ—¶é•¿</span>
-              <strong>{formatSeconds(status.raspberry_pi.uptime_seconds)}</strong>
-            </div>
+          <p className="status-island-copy">{device.detail}</p>
+          <div className="status-island-pills">
+            <span className={`status-chip ${chipToneClass(device.tone)}`}>ÏµÍ³ {device.title}</span>
+            <span className={`status-chip ${chipToneClass(networkOnline ? "success" : maintenance ? "warning" : "default")}`}>ÍøÂç {maintenance ? (networkOnline ? "ÔÚÏß" : "ÀëÏß") : "¼ÓÔØÖĞ"}</span>
+            <span className={`status-chip ${chipToneClass(videoConnected ? "success" : "warning")}`}>ÊÓÆµ {videoConnected ? "Õı³£" : "Òì³£"}</span>
+            <span className={`status-chip ${chipToneClass(aiConnected ? "success" : "warning")}`}>AI {aiConnected ? "ÔÚÏß" : "ÀëÏß"}</span>
           </div>
         </article>
 
-        <article className="system-mini-card">
-          <div className="system-mini-head">
-            <h3>CanMV</h3>
-            <span className={`badge ${aiConnected ? "ok" : "warn"}`}>{aiConnected ? "åœ¨çº¿" : "ç¦»çº¿"}</span>
-          </div>
+        <div className="status-island-grid status-island-grid-dual">
+          <article className="status-island status-island-subsystem">
+            <div className="status-island-head compact">
+              <div>
+                <span className="status-island-kicker">Raspberry Pi</span>
+                <strong>{status.raspberry_pi.hostname}</strong>
+              </div>
+              <span className="status-dot-pill tone-info">Ö÷¿Ø</span>
+            </div>
+            <div className="status-island-metrics compact">
+              <div className="status-metric-pill">
+                <span>CPU</span>
+                <strong>{formatPercent(status.raspberry_pi.cpu_percent)}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>ÄÚ´æ</span>
+                <strong>{formatPercent(status.raspberry_pi.memory_percent)}</strong>
+              </div>
+              <div className="status-metric-pill status-metric-pill-wide">
+                <span>ÔËĞĞÊ±³¤</span>
+                <strong>{formatSeconds(status.raspberry_pi.uptime_seconds)}</strong>
+              </div>
+            </div>
+          </article>
 
-          <div className="system-mini-metrics">
-            <div className="system-mini-metric">
-              <span>KPU</span>
-              <strong>{formatPercent(status.canmv_status?.kpu_percent)}</strong>
+          <article className="status-island status-island-subsystem status-island-subsystem-accent">
+            <div className="status-island-head compact">
+              <div>
+                <span className="status-island-kicker">CanMV</span>
+                <strong>{aiConnected ? "Ê¶±ğÔÚÏß" : "Ê¶±ğÀëÏß"}</strong>
+              </div>
+              <span className={`status-dot-pill tone-${aiConnected ? "success" : "warning"}`}>{aiConnected ? "ÔÚÏß" : "ÀëÏß"}</span>
             </div>
-            <div className="system-mini-metric">
-              <span>FPS</span>
-              <strong>{status.canmv_fps?.toFixed(1) ?? "-"}</strong>
+            <div className="status-island-metrics compact">
+              <div className="status-metric-pill">
+                <span>KPU</span>
+                <strong>{formatPercent(status.canmv_status?.kpu_percent)}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>FPS</span>
+                <strong>{status.canmv_fps?.toFixed(1) ?? "-"}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>ÎÂ¶È</span>
+                <strong>{formatTemp(status.canmv_status?.temperature_c)}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>×î½üÉÏ±¨</span>
+                <strong>{formatSeconds(status.canmv_last_seen_seconds)}</strong>
+              </div>
             </div>
-            <div className="system-mini-metric">
-              <span>æ¸©åº¦</span>
-              <strong>{formatTemp(status.canmv_status?.temperature_c)}</strong>
+          </article>
+        </div>
+
+        <div className="status-island-grid status-island-grid-pills">
+          <article className="status-pill-island">
+            <span>µ±Ç° IP</span>
+            <strong>{primaryIp}</strong>
+          </article>
+          <article className="status-pill-island">
+            <span>Wi-Fi</span>
+            <strong>{wifi}</strong>
+          </article>
+          <article className="status-pill-island">
+            <span>Ä¬ÈÏ½Ó¿Ú</span>
+            <strong>{maintenance?.default_interface ?? "-"}</strong>
+          </article>
+          <article className="status-pill-island">
+            <span>Ê£Óà¿Õ¼ä</span>
+            <strong>{maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB`}</strong>
+          </article>
+        </div>
+
+        <article className="status-island status-island-footer">
+          <div className="status-island-head compact">
+            <div>
+              <span className="status-island-kicker">Éè±¸ĞÅÏ¢</span>
+              <strong>{maintenance ? "ÍøÂçÓë´æ´¢ĞÅÏ¢ÒÑÍ¬²½" : "ÕıÔÚÍ¬²½ÍøÂçÓë´æ´¢ĞÅÏ¢"}</strong>
             </div>
-            <div className="system-mini-metric">
-              <span>æœ€è¿‘ä¸ŠæŠ¥</span>
-              <strong>{formatSeconds(status.canmv_last_seen_seconds)}</strong>
-            </div>
+            <span className={`status-dot-pill tone-${getDiskTone(maintenance?.disk_percent)}`}>´æ´¢</span>
           </div>
+          <p className="status-island-copy">{storage}</p>
         </article>
       </div>
-
-      <SummaryTileGrid
-        tone={device.tone}
-        className="island-grid island-grid-primary"
-        items={[
-          { label: "è®¾å¤‡çŠ¶æ€", value: device.title, tone: device.tone },
-          {
-            label: "ç½‘ç»œçŠ¶æ€",
-            value: maintenance ? (maintenance.network_online ? "åœ¨çº¿" : "ç¦»çº¿") : "åŠ è½½ä¸­",
-            tone: maintenance ? (maintenance.network_online ? "success" : "warning") : "default",
-          },
-          { label: "ç”»é¢çŠ¶æ€", value: videoConnected ? "æ­£å¸¸" : "å¼‚å¸¸", tone: videoConnected ? "success" : "warning" },
-          { label: "AI è¯†åˆ«", value: aiConnected ? "åœ¨çº¿" : "ç¦»çº¿", tone: aiConnected ? "success" : "warning" },
-        ]}
-      />
-
-      <div className="summary-card">
-        <span>è®¾å¤‡ä¿¡æ¯</span>
-        <strong>{maintenance ? "ç½‘ç»œä¸å­˜å‚¨ä¿¡æ¯å·²åŒæ­¥" : "æ­£åœ¨åŒæ­¥ç½‘ç»œä¸å­˜å‚¨ä¿¡æ¯"}</strong>
-      </div>
-
-      <SummaryTileGrid
-        tone="info"
-        className="island-grid island-grid-secondary"
-        items={[
-          { label: "å½“å‰ IP", value: maintenance?.ip_addresses?.[0] ?? "-" },
-          { label: "Wi-Fi", value: maintenance?.wifi_ssid ?? "æœªè¿æ¥", tone: maintenance?.wifi_ssid ? "success" : "warning" },
-          { label: "é»˜è®¤æ¥å£", value: maintenance?.default_interface ?? "-" },
-          { label: "å‰©ä½™ç©ºé—´", value: maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB` },
-        ]}
-      />
-
-      <SummaryTileGrid
-        tone="default"
-        className="island-grid island-grid-tertiary"
-        items={[
-          {
-            label: "å­˜å‚¨çŠ¶æ€",
-            value: formatDisk(maintenance?.disk_used_gb, maintenance?.disk_total_gb, maintenance?.disk_percent),
-            tone: getDiskTone(maintenance?.disk_percent),
-          },
-          {
-            label: "å­˜å‚¨ä½™é‡",
-            value: maintenance?.disk_free_gb == null ? "-" : `${maintenance.disk_free_gb.toFixed(1)} GB`,
-            tone: getDiskTone(maintenance?.disk_percent),
-          },
-        ]}
-      />
     </section>
   );
 }

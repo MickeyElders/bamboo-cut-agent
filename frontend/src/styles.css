@@ -1602,6 +1602,302 @@ button:disabled {
     0 10px 24px rgba(47, 124, 246, 0.12);
 }
 
+.status-island-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.status-island-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.status-island-grid-dual {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-island-grid-pills {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-island-grid-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-island {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid rgba(21, 31, 42, 0.1);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(236, 240, 244, 0.84)),
+    rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 12px 28px rgba(13, 21, 30, 0.07);
+}
+
+.status-island-hero {
+  gap: 12px;
+  padding: 15px 16px 16px;
+  border-radius: 32px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 18px 38px rgba(13, 21, 30, 0.1);
+}
+
+.status-island-hero.tone-success {
+  background: linear-gradient(180deg, rgba(242, 248, 244, 0.98), rgba(231, 239, 234, 0.9));
+}
+
+.status-island-hero.tone-warning {
+  background: linear-gradient(180deg, rgba(255, 247, 228, 0.98), rgba(245, 232, 202, 0.92));
+}
+
+.status-island-hero.tone-danger,
+.status-island-alert.tone-danger {
+  background: linear-gradient(180deg, rgba(255, 239, 239, 0.98), rgba(245, 225, 225, 0.9));
+}
+
+.status-island-subsystem {
+  min-height: 154px;
+}
+
+.status-island-subsystem-accent {
+  background: linear-gradient(180deg, rgba(239, 245, 255, 0.98), rgba(229, 237, 248, 0.9));
+}
+
+.status-island-alert {
+  background: linear-gradient(180deg, rgba(255, 245, 224, 0.98), rgba(245, 232, 200, 0.9));
+}
+
+.status-island-footer {
+  gap: 8px;
+}
+
+.status-island-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status-island-head.compact {
+  gap: 10px;
+}
+
+.status-island-head strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.status-island-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(88, 101, 117, 0.82);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-island-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.status-island-pills,
+.status-island-metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.status-island-pills {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-island-metrics.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-dot-pill,
+.status-chip,
+.status-metric-pill,
+.status-pill-island {
+  border: 1px solid rgba(21, 31, 42, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.status-dot-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 670;
+  white-space: nowrap;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 660;
+  gap: 8px;
+  text-align: center;
+}
+
+.status-chip-wide {
+  grid-column: span 2;
+}
+
+.status-metric-pill,
+.status-pill-island {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border-radius: 18px;
+}
+
+.status-metric-pill-wide {
+  grid-column: span 2;
+}
+
+.status-metric-pill span,
+.status-pill-island span {
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+
+.status-metric-pill strong,
+.status-pill-island strong {
+  color: var(--text);
+  font-family: "SF Mono", "Consolas", "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.28;
+}
+
+.status-dot-pill.tone-success,
+.status-chip-success {
+  background: rgba(48, 138, 98, 0.12);
+  border-color: rgba(48, 138, 98, 0.14);
+  color: #236f4d;
+}
+
+.status-dot-pill.tone-warning,
+.status-chip-warning {
+  background: rgba(194, 144, 34, 0.14);
+  border-color: rgba(194, 144, 34, 0.16);
+  color: #875b08;
+}
+
+.status-dot-pill.tone-danger,
+.status-chip-danger {
+  background: rgba(204, 66, 66, 0.12);
+  border-color: rgba(204, 66, 66, 0.16);
+  color: #ae3a3a;
+}
+
+.status-dot-pill.tone-info,
+.status-chip-info {
+  background: rgba(52, 120, 226, 0.12);
+  border-color: rgba(52, 120, 226, 0.14);
+  color: var(--accent);
+}
+
+.status-dot-pill.tone-default,
+.status-chip-default {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(21, 31, 42, 0.08);
+  color: var(--text);
+}
+
+.status-event-list {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 20px;
+}
+
+.sidebar .status-island-stack {
+  gap: 8px;
+}
+
+.sidebar .status-island {
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 24px;
+}
+
+.sidebar .status-island-hero {
+  padding: 13px 14px;
+  border-radius: 28px;
+}
+
+.sidebar .status-island-head strong {
+  font-size: 0.84rem;
+}
+
+.sidebar .status-island-copy {
+  font-size: 0.68rem;
+}
+
+.sidebar .status-island-pills,
+.sidebar .status-island-grid,
+.sidebar .status-island-metrics.compact {
+  gap: 6px;
+}
+
+.sidebar .status-chip {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.64rem;
+}
+
+.sidebar .status-dot-pill {
+  min-height: 24px;
+  padding: 0 9px;
+  font-size: 0.62rem;
+}
+
+.sidebar .status-metric-pill,
+.sidebar .status-pill-island {
+  padding: 8px 9px;
+  border-radius: 16px;
+}
+
+.sidebar .status-metric-pill strong,
+.sidebar .status-pill-island strong {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 980px) {
+  .status-island-grid-dual,
+  .status-island-grid-pills,
+  .status-island-grid-actions,
+  .status-island-pills,
+  .status-island-metrics.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .status-chip-wide,
+  .status-metric-pill-wide {
+    grid-column: span 1;
+  }
+}
 @media (max-width: 1180px) {
   .app {
     grid-template-columns: 1fr;
@@ -1979,3 +2275,5 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+

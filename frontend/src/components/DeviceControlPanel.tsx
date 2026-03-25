@@ -1,6 +1,5 @@
-ï»¿import type { AiFrame, SystemStatus } from "../types";
+import type { AiFrame, SystemStatus } from "../types";
 import { formatAutoState, formatLastAction, formatTime, type RunState } from "../utils/ui";
-import { SummaryTileGrid } from "./SummaryTileGrid";
 
 type DeviceControlPanelProps = {
   aiFrame: AiFrame;
@@ -16,161 +15,160 @@ type DeviceControlPanelProps = {
   onOpenEventHistory: () => void;
 };
 
+type Tone = "default" | "info" | "success" | "warning" | "danger";
+
+function getRunTone(manualMode: boolean, faultActive: boolean | undefined, cutRequest: boolean | undefined): Tone {
+  if (faultActive) return "danger";
+  if (manualMode) return "warning";
+  if (cutRequest) return "danger";
+  return "success";
+}
+
 export function DeviceControlPanel(props: DeviceControlPanelProps) {
-  const { aiFrame, systemStatus, runState, manualMode, videoConnected, lightCount, lightBrightness, lightColor, lightSummary, onResetFault, onOpenEventHistory } =
-    props;
+  const { aiFrame, systemStatus, runState, manualMode, videoConnected, lightCount, lightBrightness, lightColor, lightSummary, onResetFault, onOpenEventHistory } = props;
 
   const jobStatus = systemStatus.job_status;
   const alerts = systemStatus.alerts ?? [];
   const startupChecks = systemStatus.startup_checks ?? [];
   const recentEvents = systemStatus.recent_events ?? [];
   const inputSignals = systemStatus.input_signals ?? [];
+  const runTone = getRunTone(manualMode, jobStatus?.fault_active, aiFrame.cut_request);
+  const leadAlert = alerts[0] ?? null;
 
   return (
     <section className="panel side-panel">
       <div className={`panel-section-tag ${jobStatus?.fault_active ? "panel-section-tag-danger" : manualMode ? "panel-section-tag-warning" : "panel-section-tag-accent"}`}>
-        <span>è¿è¡Œç›‘æ§</span>
+        <span>ÔËĞĞ¼à¿Ø</span>
       </div>
       <div className="header">
-        <h2>è¿è¡Œä¿¡æ¯</h2>
-        <span className={`badge ${manualMode ? "warn" : "ok"}`}>{manualMode ? "æ‰‹åŠ¨è°ƒè¯•" : "è‡ªåŠ¨è¿è¡Œ"}</span>
+        <h2>ÔËĞĞĞÅÏ¢</h2>
       </div>
 
-      <div className="status-inline-strip">
-        <div className={`status-pill ${aiFrame.detections.length > 0 ? "active" : ""}`}>
-          <span>è¯†åˆ«</span>
-          <strong>{aiFrame.detections.length > 0 ? "è¿è¡Œä¸­" : "å¾…æœº"}</strong>
-        </div>
-        <div className={`status-pill ${aiFrame.cut_request ? "active" : ""}`}>
-          <span>åˆ‡å‰²ä½</span>
-          <strong>{aiFrame.cut_request ? "åˆ°ä½" : "ç›‘æµ‹ä¸­"}</strong>
-        </div>
-        <div className={`status-pill ${!manualMode ? "active" : ""}`}>
-          <span>æ¨¡å¼</span>
-          <strong>{manualMode ? "æ‰‹åŠ¨" : "è‡ªåŠ¨"}</strong>
-        </div>
-      </div>
+      <div className="status-island-stack">
+        <article className={`status-island status-island-hero tone-${runTone}`}>
+          <div className="status-island-head">
+            <div>
+              <span className="status-island-kicker">µ±Ç°ÔËĞĞ</span>
+              <strong>{jobStatus?.fault_active ? "±£»¤Í£»ú" : runState.label}</strong>
+            </div>
+            <span className={`status-dot-pill tone-${manualMode ? "warning" : "success"}`}>{manualMode ? "ÊÖ¶¯" : "×Ô¶¯"}</span>
+          </div>
+          <p className="status-island-copy">{jobStatus?.fault_active ? (jobStatus.fault_detail ?? "¼ì²âµ½¹ÊÕÏ£¬µÈ´ıÈË¹¤´¦Àí¡£") : runState.detail}</p>
+          <div className="status-island-pills">
+            <span className={`status-chip status-chip-${aiFrame.detections.length > 0 ? "success" : "default"}`}>Ê¶±ğ {aiFrame.detections.length > 0 ? "ÔËĞĞÖĞ" : "´ı»ú"}</span>
+            <span className={`status-chip status-chip-${aiFrame.cut_request ? "danger" : "info"}`}>ÇĞ¸îÎ» {aiFrame.cut_request ? "µ½Î»" : "¼à²âÖĞ"}</span>
+            <span className={`status-chip status-chip-${videoConnected ? "success" : "warning"}`}>»­Ãæ {videoConnected ? "Õı³£" : "¶Ï¿ª"}</span>
+            <span className={`status-chip status-chip-${jobStatus?.fault_active ? "danger" : "success"}`}>±£»¤ {jobStatus?.fault_active ? "¹ÊÕÏËø¶¨" : "Õı³£"}</span>
+          </div>
+        </article>
 
-      <SummaryTileGrid
-        tone="success"
-        className="island-grid island-grid-primary"
-        items={[
-          {
-            label: "å½“å‰çŠ¶æ€",
-            value: jobStatus?.fault_active ? "ä¿æŠ¤åœæœº" : runState.label,
-            tone: jobStatus?.fault_active ? "danger" : aiFrame.cut_request ? "danger" : "success",
-          },
-          { label: "è¯†åˆ«ç›®æ ‡", value: aiFrame.detections.length },
-          { label: "åˆ‡å‰²è¯·æ±‚", value: aiFrame.cut_request ? "å·²è§¦å‘" : "å¾…å‘½" },
-          { label: "ç”»é¢çŠ¶æ€", value: videoConnected ? "æ­£å¸¸" : "æ–­å¼€", tone: videoConnected ? "success" : "warning" },
-        ]}
-      />
+        <div className="status-island-grid status-island-grid-dual">
+          <article className="status-island status-island-subsystem">
+            <div className="status-island-head compact">
+              <div>
+                <span className="status-island-kicker">Á÷³Ì×´Ì¬</span>
+                <strong>{formatAutoState(jobStatus?.auto_state)}</strong>
+              </div>
+            </div>
+            <div className="status-island-metrics compact">
+              <div className="status-metric-pill">
+                <span>×î½ü¶¯×÷</span>
+                <strong>{formatLastAction(jobStatus?.last_action)}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>ÀÛ¼ÆÑ­»·</span>
+                <strong>{jobStatus?.cycle_count ?? 0}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>ÇĞ¸îĞÅºÅ</span>
+                <strong>{jobStatus?.cut_request_active ? "»îÔ¾" : "¿ÕÏĞ"}</strong>
+              </div>
+              <div className="status-metric-pill">
+                <span>Ä¿±êÊı</span>
+                <strong>{aiFrame.detections.length}</strong>
+              </div>
+            </div>
+          </article>
 
-      <SummaryTileGrid
-        tone="info"
-        className="island-grid island-grid-secondary"
-        items={[
-          { label: "è‡ªåŠ¨é˜¶æ®µ", value: formatAutoState(jobStatus?.auto_state) },
-          { label: "æœ€è¿‘åŠ¨ä½œ", value: formatLastAction(jobStatus?.last_action) },
-          { label: "ç´¯è®¡å¾ªç¯", value: jobStatus?.cycle_count ?? 0 },
-          { label: "åˆ‡å‰²ä¿¡å·", value: jobStatus?.cut_request_active ? "æ´»è·ƒ" : "ç©ºé—²" },
-        ]}
-      />
-
-      <SummaryTileGrid
-        tone={jobStatus?.fault_active ? "danger" : "default"}
-        className="island-grid island-grid-tertiary"
-        items={[
-          {
-            label: "ä¿æŠ¤çŠ¶æ€",
-            value: jobStatus?.fault_active ? "æ•…éšœé”å®š" : "æ­£å¸¸",
-            tone: jobStatus?.fault_active ? "danger" : "success",
-          },
-          { label: "æ•…éšœä»£ç ", value: jobStatus?.fault_code ?? "-" },
-          { label: "æ•…éšœè¯´æ˜", value: jobStatus?.fault_detail ?? "-" },
-        ]}
-      />
-
-      <div className="modal-actions modal-actions-dual">
-        <button className="surface-button secondary-action-button" onClick={onOpenEventHistory}>
-          æŸ¥çœ‹äº‹ä»¶å†å²
-        </button>
-        {jobStatus?.fault_active ? (
-          <button className="surface-button warning fault-action-button" onClick={onResetFault}>
-            æ•…éšœå¤ä½
-          </button>
-        ) : null}
-      </div>
-
-      <SummaryTileGrid
-        tone="info"
-        className="island-grid island-grid-secondary"
-        items={(startupChecks.length > 0 ? startupChecks : [{ label: "å¯åŠ¨è‡ªæ£€", detail: "æš‚æ— æ•°æ®", status: "default" }]).slice(0, 4).map((item) => ({
-          label: item.label,
-          value: item.detail,
-          tone: item.status === "ok" ? "success" : item.status === "warn" ? "warning" : item.status === "danger" ? "danger" : "default",
-        }))}
-      />
-
-      <SummaryTileGrid
-        tone="info"
-        className="island-grid island-grid-tertiary"
-        items={(inputSignals.length > 0 ? inputSignals : [{ label: "è¾“å…¥åé¦ˆ", detail: "æœªé…ç½®", available: false, active: null }]).slice(0, 4).map((item) => ({
-          label: item.label,
-          value: item.available ? (item.active ? "è§¦å‘" : "æ­£å¸¸") : item.detail,
-          tone: !item.available ? "default" : item.active ? "warning" : "success",
-        }))}
-      />
-
-      {alerts.length > 0 ? (
-        <div className="summary-card summary-card-warning">
-          <span>å½“å‰å‘Šè­¦</span>
-          <strong>{alerts[0].title}</strong>
-          <p>{alerts[0].detail}</p>
-        </div>
-      ) : (
-        <div className="summary-card summary-card-info">
-          <span>å½“å‰å‘Šè­¦</span>
-          <strong>æœªå‘ç°æ´»åŠ¨å‘Šè­¦</strong>
-        </div>
-      )}
-
-      <SummaryTileGrid
-        tone="info"
-        className="island-grid island-grid-secondary"
-        items={[
-          { label: "äº®ç¯æ•°é‡", value: `${lightCount} / 16` },
-          { label: "ç¯å…‰äº®åº¦", value: `${lightBrightness} / 255` },
-          {
-            label: "ç¯å…‰é¢œè‰²",
-            value: (
-              <span className="light-color-value">
+          <article className={`status-island status-island-subsystem ${leadAlert ? "status-island-alert" : "status-island-subsystem-accent"}`}>
+            <div className="status-island-head compact">
+              <div>
+                <span className="status-island-kicker">¸æ¾¯ÓëµÆ¹â</span>
+                <strong>{leadAlert ? leadAlert.title : "Î´·¢ÏÖ»î¶¯¸æ¾¯"}</strong>
+              </div>
+              <span className={`status-dot-pill tone-${leadAlert ? "warning" : "info"}`}>{leadAlert ? leadAlert.level : "ÎÈ¶¨"}</span>
+            </div>
+            <p className="status-island-copy">{leadAlert ? leadAlert.detail : lightSummary}</p>
+            <div className="status-island-pills">
+              <span className="status-chip status-chip-info">ÁÁµÆ {lightCount}/16</span>
+              <span className="status-chip status-chip-info">ÁÁ¶È {lightBrightness}/255</span>
+              <span className="status-chip status-chip-wide status-chip-info">
                 <span className="light-color-chip" style={{ backgroundColor: lightColor }} />
                 {lightColor.toUpperCase()}
               </span>
-            ),
-          },
-        ]}
-      />
+            </div>
+          </article>
+        </div>
 
-      <div className="summary-card summary-card-info">
-        <span>ç¯å…‰æ‘˜è¦</span>
-        <strong>{lightSummary}</strong>
-      </div>
-
-      <div className="summary-card">
-        <span>æœ€è¿‘äº‹ä»¶</span>
-        <strong>{recentEvents.length > 0 ? `${recentEvents.length} æ¡è¿è¡Œè®°å½•` : "æš‚æ— è¿è¡Œè®°å½•"}</strong>
-        {recentEvents.length > 0 ? (
-          <div className="compact-info-list">
-            {recentEvents.slice(0, 4).map((event) => (
-              <div className="compact-info-row" key={`${event.timestamp}-${event.code}`}>
-                <span>{formatTime(event.timestamp)}</span>
-                <strong>{event.message}</strong>
+        {jobStatus?.fault_active ? (
+          <article className="status-island status-island-alert tone-danger">
+            <div className="status-island-head compact">
+              <div>
+                <span className="status-island-kicker">¹ÊÕÏĞÅÏ¢</span>
+                <strong>{jobStatus.fault_code ?? "Î´Ìá¹©´úÂë"}</strong>
               </div>
-            ))}
-          </div>
+              <span className="status-dot-pill tone-danger">Ëø¶¨ÖĞ</span>
+            </div>
+            <p className="status-island-copy">{jobStatus.fault_detail ?? "µÈ´ıÈË¹¤È·ÈÏÓë¸´Î»¡£"}</p>
+          </article>
         ) : null}
+
+        <div className="status-island-grid status-island-grid-actions">
+          <button className="surface-button secondary-action-button" onClick={onOpenEventHistory}>
+            ²é¿´ÊÂ¼şÀúÊ·
+          </button>
+          {jobStatus?.fault_active ? (
+            <button className="surface-button warning fault-action-button" onClick={onResetFault}>
+              ¹ÊÕÏ¸´Î»
+            </button>
+          ) : null}
+        </div>
+
+        <div className="status-island-grid status-island-grid-pills">
+          {(startupChecks.length > 0 ? startupChecks : [{ label: "Æô¶¯×Ô¼ì", detail: "ÔİÎŞÊı¾İ", status: "default" }]).slice(0, 2).map((item) => (
+            <article className="status-pill-island" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.detail}</strong>
+            </article>
+          ))}
+          {(inputSignals.length > 0 ? inputSignals : [{ label: "ÊäÈë·´À¡", detail: "Î´ÅäÖÃ", available: false, active: null }]).slice(0, 2).map((item) => (
+            <article className="status-pill-island" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.available ? (item.active ? "´¥·¢" : "Õı³£") : item.detail}</strong>
+            </article>
+          ))}
+        </div>
+
+        <article className="status-island status-island-footer">
+          <div className="status-island-head compact">
+            <div>
+              <span className="status-island-kicker">×î½üÊÂ¼ş</span>
+              <strong>{recentEvents.length > 0 ? `${recentEvents.length} ÌõÔËĞĞ¼ÇÂ¼` : "ÔİÎŞÔËĞĞ¼ÇÂ¼"}</strong>
+            </div>
+          </div>
+          {recentEvents.length > 0 ? (
+            <div className="compact-info-list status-event-list">
+              {recentEvents.slice(0, 4).map((event) => (
+                <div className="compact-info-row" key={`${event.timestamp}-${event.code}`}>
+                  <span>{formatTime(event.timestamp)}</span>
+                  <strong>{event.message}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="status-island-copy">µ±Ç°Ã»ÓĞĞÂµÄÔËĞĞÊÂ¼ş¡£</p>
+          )}
+        </article>
       </div>
     </section>
   );
