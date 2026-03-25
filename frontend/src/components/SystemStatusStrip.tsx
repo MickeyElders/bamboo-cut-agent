@@ -122,6 +122,7 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
 
       <SummaryTileGrid
         tone={device.tone}
+        className="island-grid island-grid-primary"
         items={[
           { label: "设备状态", value: device.title, tone: device.tone },
           {
@@ -141,6 +142,7 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
 
       <SummaryTileGrid
         tone="info"
+        className="island-grid island-grid-secondary"
         items={[
           { label: "当前 IP", value: maintenance?.ip_addresses?.[0] ?? "-" },
           { label: "Wi-Fi", value: maintenance?.wifi_ssid ?? "未连接", tone: maintenance?.wifi_ssid ? "success" : "warning" },
@@ -151,6 +153,7 @@ export function SystemStatusStrip({ status, maintenance, videoConnected }: Syste
 
       <SummaryTileGrid
         tone="default"
+        className="island-grid island-grid-tertiary"
         items={[
           {
             label: "存储状态",

@@ -144,6 +144,8 @@ export default function App() {
   const [lightApplying, setLightApplying] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
+  const [manualModeSwitching, setManualModeSwitching] = useState(false);
+  const [manualModeError, setManualModeError] = useState("");
   const [systemModalOpen, setSystemModalOpen] = useState(false);
   const [systemLoading, setSystemLoading] = useState(false);
   const [systemApplyingAction, setSystemApplyingAction] = useState<string | null>(null);
@@ -414,15 +416,25 @@ export default function App() {
       setManualModalOpen(true);
       return;
     }
+    setManualModeError("");
     setManualConfirmOpen(true);
   }
 
-  function handleConfirmManualMode() {
-    setManualConfirmOpen(false);
-    void runControl(setManualMode, () => {
+  async function handleConfirmManualMode() {
+    setManualModeSwitching(true);
+    setManualModeError("");
+    try {
+      await setManualMode();
       setControlMode("manual");
       setManualModalOpen(true);
-    });
+      setManualConfirmOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "进入手动调试失败";
+      setControlError(message);
+      setManualModeError(message);
+    } finally {
+      setManualModeSwitching(false);
+    }
   }
 
   function handleReturnAutoMode() {
@@ -638,8 +650,14 @@ export default function App() {
         title="进入手动调试"
         description="进入手动模式后，设备将退出自动运行。该模式仅用于安装和调试。"
         confirmLabel="确认进入手动"
-        onConfirm={handleConfirmManualMode}
-        onCancel={() => setManualConfirmOpen(false)}
+        loading={manualModeSwitching}
+        error={manualModeError}
+        onConfirm={() => void handleConfirmManualMode()}
+        onCancel={() => {
+          if (manualModeSwitching) return;
+          setManualConfirmOpen(false);
+          setManualModeError("");
+        }}
       />
 
       <ConfirmActionModal

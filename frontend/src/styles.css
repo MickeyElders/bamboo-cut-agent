@@ -856,11 +856,57 @@ video {
   margin: 2px 0 8px;
 }
 
+.sidebar .summary-grid.island-grid-primary {
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.sidebar .summary-grid.island-grid-secondary {
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.sidebar .summary-grid.island-grid-tertiary {
+  gap: 4px;
+  margin: 1px 0 6px;
+}
+
 .sidebar .summary-tile {
   min-height: 52px;
   gap: 3px;
   padding: 8px 10px;
   border-radius: 16px;
+}
+
+.sidebar .summary-grid.island-grid-primary .summary-tile {
+  min-height: 66px;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 14px 28px rgba(12, 18, 27, 0.09);
+}
+
+.sidebar .summary-grid.island-grid-primary .summary-tile:first-child {
+  min-height: 78px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+.sidebar .summary-grid.island-grid-secondary .summary-tile {
+  min-height: 56px;
+  padding: 9px 10px;
+  border-radius: 18px;
+}
+
+.sidebar .summary-grid.island-grid-tertiary .summary-tile {
+  min-height: 48px;
+  padding: 7px 9px;
+  border-radius: 15px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 6px 14px rgba(12, 18, 27, 0.04);
 }
 
 .sidebar .summary-tile span,
@@ -881,6 +927,20 @@ video {
   border-radius: 16px;
 }
 
+.sidebar .summary-card-info,
+.sidebar .summary-card-warning,
+.sidebar .summary-card {
+  border-radius: 20px;
+}
+
+.sidebar .summary-card-info {
+  background: linear-gradient(180deg, rgba(241, 247, 255, 0.96), rgba(230, 237, 247, 0.9));
+}
+
+.sidebar .summary-card-warning {
+  background: linear-gradient(180deg, rgba(255, 245, 221, 0.98), rgba(244, 228, 188, 0.92));
+}
+
 .sidebar .summary-card p {
   margin: 0;
   color: var(--muted);
@@ -892,7 +952,7 @@ video {
   gap: 5px;
   margin: 2px 0 6px;
   padding: 8px 9px;
-  border-radius: 16px;
+  border-radius: 18px;
 }
 
 .sidebar .compact-info-row span {
@@ -916,21 +976,50 @@ video {
 }
 
 .sidebar > .panel + .panel {
-  margin-top: -2px;
+  margin-top: 0;
 }
 
 .sidebar > .panel:first-child {
-  border-bottom-left-radius: 24px;
-  border-bottom-right-radius: 24px;
+  border-bottom-left-radius: 28px;
+  border-bottom-right-radius: 28px;
 }
 
 .sidebar > .panel:not(:first-child):not(:last-child) {
-  border-radius: 24px;
+  border-radius: 28px;
 }
 
 .sidebar > .panel:last-child {
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+}
+
+.sidebar > .panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(239, 243, 247, 0.88)),
+    var(--panel);
+}
+
+.sidebar > .panel::before {
+  opacity: 0.72;
+}
+
+.sidebar .system-health-banner {
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 14px 28px rgba(12, 18, 27, 0.08);
+}
+
+.sidebar .system-mini-card {
+  border-radius: 22px;
+}
+
+.sidebar .system-mini-card:first-child {
+  background: linear-gradient(180deg, rgba(247, 249, 252, 0.98), rgba(234, 239, 245, 0.9));
+}
+
+.sidebar .system-mini-card:last-child {
+  background: linear-gradient(180deg, rgba(240, 246, 255, 0.98), rgba(228, 236, 247, 0.9));
 }
 
 .sidebar .status-pill span {

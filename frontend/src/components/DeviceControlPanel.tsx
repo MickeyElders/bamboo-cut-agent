@@ -53,6 +53,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone="success"
+        className="island-grid island-grid-primary"
         items={[
           {
             label: "当前状态",
@@ -67,6 +68,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone="info"
+        className="island-grid island-grid-secondary"
         items={[
           { label: "自动阶段", value: formatAutoState(jobStatus?.auto_state) },
           { label: "最近动作", value: formatLastAction(jobStatus?.last_action) },
@@ -77,6 +79,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone={jobStatus?.fault_active ? "danger" : "default"}
+        className="island-grid island-grid-tertiary"
         items={[
           {
             label: "保护状态",
@@ -101,6 +104,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone="info"
+        className="island-grid island-grid-secondary"
         items={(startupChecks.length > 0 ? startupChecks : [{ label: "启动自检", detail: "暂无数据", status: "default" }]).slice(0, 4).map((item) => ({
           label: item.label,
           value: item.detail,
@@ -110,6 +114,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone="info"
+        className="island-grid island-grid-tertiary"
         items={(inputSignals.length > 0 ? inputSignals : [{ label: "输入反馈", detail: "未配置", available: false, active: null }]).slice(0, 4).map((item) => ({
           label: item.label,
           value: item.available ? (item.active ? "触发" : "正常") : item.detail,
@@ -132,6 +137,7 @@ export function DeviceControlPanel(props: DeviceControlPanelProps) {
 
       <SummaryTileGrid
         tone="info"
+        className="island-grid island-grid-secondary"
         items={[
           { label: "亮灯数量", value: `${lightCount} / 16` },
           { label: "灯光亮度", value: `${lightBrightness} / 255` },
