@@ -107,6 +107,7 @@ export VIDEO_FPS=30
 export VIDEO_ENCODER=x264enc
 export VIDEO_BITRATE_KBPS=2500
 export VIDEO_SOURCE_FORMAT=jpeg
+export VIDEO_RAW_PIXEL_FORMAT=YUY2
 export VIDEO_QUEUE_BUFFERS=1
 export VIDEO_KEYFRAME_INTERVAL=30
 ```
@@ -116,6 +117,24 @@ export VIDEO_KEYFRAME_INTERVAL=30
 - 保持 `VIDEO_QUEUE_BUFFERS=1`，避免旧帧积压导致画面越看越慢
 - 如果硬件编码链路验证通过，可再尝试 `VIDEO_ENCODER=v4l2h264enc`
 - 如果采集卡支持更低延迟格式，可继续尝试 `VIDEO_SOURCE_FORMAT=raw` 或 `VIDEO_SOURCE_FORMAT=h264`
+
+低延迟优先的 720p 方案可优先尝试：
+
+```bash
+export VIDEO_WIDTH=1280
+export VIDEO_HEIGHT=720
+export VIDEO_FPS=20
+export VIDEO_SOURCE_FORMAT=raw
+export VIDEO_RAW_PIXEL_FORMAT=YUY2
+export VIDEO_ENCODER=x264enc
+export VIDEO_BITRATE_KBPS=2000
+export VIDEO_QUEUE_BUFFERS=1
+export VIDEO_KEYFRAME_INTERVAL=15
+```
+
+说明：
+- 该模式会使用采集卡的 `YUYV/YUY2 4:2:2` 原始格式
+- 在 `1280x720` 下通常比 `MJPG 30fps` 更低延迟，但帧率会降到 `20fps`
 
 前端通过：
 - `ws://<pi-ip>:8000/ws/video`

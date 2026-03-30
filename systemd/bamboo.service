@@ -32,6 +32,7 @@ Environment=VIDEO_ENCODER=x264enc
 Environment=VIDEO_BITRATE_KBPS=2500
 Environment=VIDEO_STUN_SERVER=
 Environment=VIDEO_SOURCE_FORMAT=jpeg
+Environment=VIDEO_RAW_PIXEL_FORMAT=YUY2
 Environment=VIDEO_QUEUE_BUFFERS=1
 Environment=VIDEO_KEYFRAME_INTERVAL=30
 Environment=XDG_RUNTIME_DIR=/run/bamboo

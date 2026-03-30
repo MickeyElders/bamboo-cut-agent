@@ -41,6 +41,7 @@ class VideoConfig:
     encoder: str = os.getenv("VIDEO_ENCODER", "x264enc")
     stun_server: str = os.getenv("VIDEO_STUN_SERVER", "")
     source_format: str = os.getenv("VIDEO_SOURCE_FORMAT", "jpeg")
+    raw_pixel_format: str = os.getenv("VIDEO_RAW_PIXEL_FORMAT", "YUY2")
     queue_buffers: int = int(os.getenv("VIDEO_QUEUE_BUFFERS", "1"))
     keyframe_interval: int = int(os.getenv("VIDEO_KEYFRAME_INTERVAL", "30"))
 
@@ -115,7 +116,7 @@ class WebRtcSession:
     def _source_caps(self) -> str:
         if self.config.source_format == "raw":
             return (
-                f'video/x-raw,width={self.config.width},height={self.config.height},framerate={self.config.fps}/1'
+                f'video/x-raw,format={self.config.raw_pixel_format},width={self.config.width},height={self.config.height},framerate={self.config.fps}/1'
             )
         if self.config.source_format == "h264":
             return (
@@ -264,6 +265,7 @@ class VideoWebRtcManager:
             "encoder": self.config.encoder,
             "bitrate_kbps": self.config.bitrate_kbps,
             "source_format": self.config.source_format,
+            "raw_pixel_format": self.config.raw_pixel_format,
             "queue_buffers": self.config.queue_buffers,
             "keyframe_interval": self.config.keyframe_interval,
         }
