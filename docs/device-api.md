@@ -43,6 +43,7 @@
 能力示例：
 - 自动运行
 - 手动调试
+- 硬触发切割
 - 灯光控制
 - 切割配置
 - 输入反馈
@@ -66,6 +67,12 @@
       "label": "自动运行",
       "supported": true,
       "detail": "支持自动切割流程"
+    },
+    {
+      "key": "cut.trigger.gpio",
+      "label": "硬触发切割",
+      "supported": true,
+      "detail": "GPIO 硬触发已接入，自动流程优先使用该链路"
     },
     {
       "key": "light.control",
@@ -236,6 +243,7 @@
 - 设备命令表达业务动作，不暴露底层 GPIO 细节。
 - 现场 HMI 不使用这组接口做自检或调试。
 - 现场 HMI 与外部集成是两层边界，不混用。
+- 对于关键切割触发，推荐使用独立 GPIO 输入；UART 主要承担状态、诊断和配置同步。
 
 ## Error Responses
 

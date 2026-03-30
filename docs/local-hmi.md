@@ -67,8 +67,13 @@
 现场默认工作方式是自动运行：
 - 设备处于自动模式
 - 前端通过 `WS /ws/ui` 接收状态推送
-- CanMV 提供识别结果和切割触发
+- CanMV 通过 `UART` 提供识别结果与运行状态
+- CanMV 通过独立 `GPIO` 提供关键切割触发
 - 树莓派执行自动送料、压紧、切割和释放流程
+
+说明：
+- 若已配置 `CANMV_CUT_REQUEST_INPUT_PIN`，自动流程优先使用 GPIO 硬触发
+- 若未配置该输入，系统会退回 UART `cut_request` 触发
 
 ### 手动调试
 
@@ -170,6 +175,8 @@
   - 视频链路是否启用
 - `canmv_link`
   - CanMV 通信是否在线
+- `cut_request_link`
+  - CanMV 硬触发链路是否已接入
 - `gpio_inputs`
   - GPIO 输入反馈是否已配置
 
@@ -177,6 +184,8 @@
 
 - `canmv_offline`
   - CanMV 离线，尚未收到最新状态
+- `cut_request_gpio_unavailable`
+  - 未接入 GPIO 硬触发，当前退回 UART 触发
 - `light_driver`
   - 灯光驱动异常
 - `pi_memory_high`

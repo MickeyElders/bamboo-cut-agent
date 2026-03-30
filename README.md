@@ -156,10 +156,11 @@ CanMV 可以通过 WebSocket 或串口向树莓派发送 AI 结果。
 
 ### Wiring: CanMV to Raspberry Pi
 
-推荐使用两条独立链路：
+推荐使用三条独立链路：
 
 1. `HDMI` 传视频
 2. `UART over GPIO` 传识别结果、切割请求和切割位配置
+3. `GPIO 数字输入` 传硬实时切割触发
 
 ### HDMI Video Path
 
@@ -188,10 +189,31 @@ CanMV 可以通过 WebSocket 或串口向树莓派发送 AI 结果。
 ```bash
 CANMV_SERIAL_PORT=/dev/serial0
 CANMV_BAUDRATE=115200
+CANMV_CUT_REQUEST_INPUT_PIN=24
 LIGHT_GPIO_PIN=10
 LIGHT_LED_COUNT=16
 LIGHT_BRIGHTNESS=255
 ```
+
+### CanMV Hard Trigger GPIO Path
+
+为了让自动切割尽量不依赖 UART JSON 解析延迟，推荐增加一条 `CanMV -> Raspberry Pi` 的硬触发线：
+
+- `CanMV 3.3V GPIO output` -> `Raspberry Pi BCM GPIO24 / physical pin 18`
+- `CanMV GND` -> `Raspberry Pi GND`
+
+说明：
+- 这是一条单独的数字信号线，只负责“到达切割位/允许切割”这一类关键触发
+- 推荐输出 `3.3V` 高电平触发
+- 当前后端默认按 `pull_down + active_high` 读取该输入
+- 若已配置 `CANMV_CUT_REQUEST_INPUT_PIN`，自动流程会优先使用 GPIO 触发
+- UART 仍然保留，用于识别框、温度、FPS、诊断与切割配置下发
+
+推荐职责划分：
+
+- `HDMI`: 视频画面
+- `UART`: AI 状态、识别结果、诊断、配置
+- `GPIO`: 关键切割触发
 
 ### Work Light Wiring
 
@@ -264,6 +286,7 @@ UI 订阅：
 - 串口格式：按行分隔的 JSON
 - 结构与 WebSocket 上报负载一致
 - 默认端口：`/dev/serial0`
+- 若已启用 `CANMV_CUT_REQUEST_INPUT_PIN`，串口中的 `cut_request` 主要作为状态参考，不再作为自动流程首选触发源
 
 ### Local Simulation
 

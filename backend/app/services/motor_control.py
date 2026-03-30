@@ -53,6 +53,9 @@ class MotorController:
         self._status = _MotorStatus()
         self._lock = asyncio.Lock()
         self._auto_task: asyncio.Task | None = None
+        self._uart_cut_request_active = False
+        self._gpio_cut_request_active = False
+        self._prefer_gpio_cut_request = False
         self._light = LightController()
         self._events: deque[EventItem] = deque(maxlen=int(os.getenv("RUNTIME_EVENT_LIMIT", "20")))
         self._event_log_path = Path(os.getenv("RUNTIME_EVENT_LOG_PATH", Path(__file__).resolve().parents[2] / "data" / "runtime_events.jsonl"))
@@ -199,11 +202,43 @@ class MotorController:
             logger.info("motor light configured status=%s", self._status_snapshot())
             return self._status_snapshot()
 
+    async def set_cut_request_gpio_enabled(self, enabled: bool) -> None:
+        async with self._lock:
+            self._prefer_gpio_cut_request = enabled
+            self._status.cut_request_active = self._combined_cut_request_active_locked()
+
+    async def process_cut_request_gpio(self, active: bool) -> None:
+        start_cycle = False
+        async with self._lock:
+            previous = self._gpio_cut_request_active
+            self._gpio_cut_request_active = active
+            self._status.cut_request_active = self._combined_cut_request_active_locked()
+            if self._prefer_gpio_cut_request and self._status.mode == "auto" and not self._status.fault_active:
+                if self._status.auto_state in ("auto_armed", "manual_ready"):
+                    self._status.auto_state = "feeding"
+                if (
+                    active
+                    and not previous
+                    and self._auto_task is None
+                    and self._status.auto_state in ("feeding", "waiting_cut_signal", "auto_armed")
+                ):
+                    self._status.last_action = "cut_request_received"
+                    self._status.auto_state = "position_reached"
+                    self._record_event_locked("runtime", "info", "cut_request_gpio", "收到 GPIO 切割触发信号")
+                    start_cycle = True
+                elif not active and self._auto_task is None and self._status.feed_running:
+                    self._status.auto_state = "feeding"
+
+        if start_cycle:
+            logger.info("auto cycle triggered by gpio cut request")
+            self._auto_task = asyncio.create_task(self._run_auto_cycle())
+
     async def process_ai_frame(self, frame: AiFrame) -> None:
         start_cycle = False
         async with self._lock:
-            self._status.cut_request_active = bool(frame.cut_request)
-            if self._status.mode == "auto" and not self._status.fault_active:
+            self._uart_cut_request_active = bool(frame.cut_request)
+            self._status.cut_request_active = self._combined_cut_request_active_locked()
+            if not self._prefer_gpio_cut_request and self._status.mode == "auto" and not self._status.fault_active:
                 if self._status.auto_state in ("auto_armed", "manual_ready"):
                     self._status.auto_state = "feeding"
                 if (
@@ -383,6 +418,11 @@ class MotorController:
         self._status.light_red = self._light.red
         self._status.light_green = self._light.green
         self._status.light_blue = self._light.blue
+
+    def _combined_cut_request_active_locked(self) -> bool:
+        if self._prefer_gpio_cut_request:
+            return self._gpio_cut_request_active
+        return self._gpio_cut_request_active or self._uart_cut_request_active
 
     def _set_fault_locked(self, code: str, detail: str) -> None:
         self._status.fault_active = True

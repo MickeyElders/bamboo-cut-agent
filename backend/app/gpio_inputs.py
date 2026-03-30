@@ -100,6 +100,7 @@ class _InputChannel:
 class InputMonitor:
     def __init__(self) -> None:
         self._channels = [
+            _InputChannel("canmv_cut_request", "CanMV 切割触发", "CANMV_CUT_REQUEST_INPUT_PIN", pull_up=False, active_high=True),
             _InputChannel("feed_home", "送料到位", "FEED_HOME_INPUT_PIN"),
             _InputChannel("clamp_closed", "压紧到位", "CLAMP_CLOSED_INPUT_PIN"),
             _InputChannel("cutter_up", "刀片上位", "CUTTER_UP_INPUT_PIN"),
@@ -109,6 +110,16 @@ class InputMonitor:
 
     def snapshot(self) -> list[InputSignalState]:
         return [channel.read() for channel in self._channels]
+
+    def read(self, key: str) -> InputSignalState | None:
+        for channel in self._channels:
+            if channel.key == key:
+                return channel.read()
+        return None
+
+    def is_available(self, key: str) -> bool:
+        state = self.read(key)
+        return bool(state and state.available)
 
     def available_count(self) -> int:
         return sum(1 for channel in self._channels if channel.available)

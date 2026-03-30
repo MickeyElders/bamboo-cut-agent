@@ -49,6 +49,7 @@ class RuntimeServices:
         self.inputs = InputMonitor()
         self.cut_config_store = CutConfigStore(path=os.getenv("CUT_CONFIG_PATH"))
         self.status_task: asyncio.Task | None = None
+        self.input_task: asyncio.Task | None = None
         self.startup_checks: list[StartupCheck] = []
         self.software_version = os.getenv("BAMBOO_SOFTWARE_VERSION", "0.1.0")
         self.local_uid = os.getenv("DEVICE_LOCAL_UID") or self._build_local_uid()
@@ -88,12 +89,35 @@ class RuntimeServices:
             await self.broadcast_system_status()
             await asyncio.sleep(2.0)
 
+    async def input_monitor_loop(self) -> None:
+        last_cut_request: bool | None = None
+        last_estop: bool | None = None
+        while True:
+            cut_request = self.inputs.read("canmv_cut_request")
+            if cut_request and cut_request.available and cut_request.active is not None:
+                await self.motor.process_cut_request_gpio(bool(cut_request.active))
+                if last_cut_request is None or bool(cut_request.active) != last_cut_request:
+                    last_cut_request = bool(cut_request.active)
+                    logger.info("gpio cut_request changed active=%s pin=%s", cut_request.active, cut_request.pin)
+                    await self.broadcast_system_status()
+
+            estop = self.inputs.read("estop")
+            if estop and estop.available and estop.active is not None:
+                if last_estop is None or bool(estop.active) != last_estop:
+                    last_estop = bool(estop.active)
+                    logger.info("gpio estop changed active=%s pin=%s", estop.active, estop.pin)
+                    await self.broadcast_system_status()
+
+            await asyncio.sleep(0.02)
+
     async def startup(self) -> None:
         logger.info("runtime startup begin")
+        await self.motor.set_cut_request_gpio_enabled(self.inputs.is_available("canmv_cut_request"))
         await self.canmv_bridge.start()
         await self.canmv_bridge.set_cut_config(self.cut_config_store.get())
         self.startup_checks = await self._run_startup_checks()
         self.status_task = asyncio.create_task(self.status_broadcast_loop())
+        self.input_task = asyncio.create_task(self.input_monitor_loop())
         logger.info("runtime startup complete")
 
     async def shutdown(self) -> None:
@@ -106,6 +130,13 @@ class RuntimeServices:
             except asyncio.CancelledError:
                 pass
             self.status_task = None
+        if self.input_task is not None:
+            self.input_task.cancel()
+            try:
+                await self.input_task
+            except asyncio.CancelledError:
+                pass
+            self.input_task = None
         await self.motor.shutdown()
         self.inputs.close()
         await self.video.shutdown()
@@ -138,6 +169,14 @@ class RuntimeServices:
         capabilities = [
             DeviceCapability(key="mode.auto", label="自动运行", supported=True, detail="支持自动切割流程"),
             DeviceCapability(key="mode.manual", label="手动调试", supported=True, detail="支持手动调试模式"),
+            DeviceCapability(
+                key="cut.trigger.gpio",
+                label="硬触发切割",
+                supported=self.inputs.is_available("canmv_cut_request"),
+                detail="GPIO 硬触发已接入，自动流程优先使用该链路"
+                if self.inputs.is_available("canmv_cut_request")
+                else "未配置 GPIO 硬触发，当前由 UART cut_request 触发自动流程",
+            ),
             DeviceCapability(
                 key="light.control",
                 label="灯光控制",
@@ -297,6 +336,14 @@ class RuntimeServices:
         )
         checks.append(
             StartupCheck(
+                key="cut_request_link",
+                label="切割触发链路",
+                status="ok" if self.inputs.is_available("canmv_cut_request") else "warn",
+                detail="GPIO 硬触发已接入" if self.inputs.is_available("canmv_cut_request") else "未配置 GPIO 硬触发，当前退回 UART 触发",
+            )
+        )
+        checks.append(
+            StartupCheck(
                 key="gpio_inputs",
                 label="输入反馈",
                 status="ok" if self.inputs.available_count() > 0 else "warn",
@@ -340,6 +387,15 @@ class RuntimeServices:
                         detail=f"已接入 {self.inputs.available_count()} 路 GPIO 输入" if self.inputs.available_count() > 0 else "尚未配置 GPIO 输入反馈",
                     )
                 )
+            elif item.key == "cut_request_link":
+                updated.append(
+                    StartupCheck(
+                        key=item.key,
+                        label=item.label,
+                        status="ok" if self.inputs.is_available("canmv_cut_request") else "warn",
+                        detail="GPIO 硬触发已接入" if self.inputs.is_available("canmv_cut_request") else "未配置 GPIO 硬触发，当前退回 UART 触发",
+                    )
+                )
             else:
                 updated.append(item)
         return updated
@@ -354,6 +410,15 @@ class RuntimeServices:
                     code="canmv_offline",
                     title="AI 识别离线",
                     detail="尚未收到 CanMV 最新状态。",
+                )
+            )
+        if not self.inputs.is_available("canmv_cut_request"):
+            alerts.append(
+                AlertItem(
+                    level="warning",
+                    code="cut_request_gpio_unavailable",
+                    title="切割硬触发未接入",
+                    detail="当前自动流程退回 UART cut_request 触发，实时性与确定性弱于 GPIO 硬触发。",
                 )
             )
         if bool(motor_status.get("fault_active", False)):
