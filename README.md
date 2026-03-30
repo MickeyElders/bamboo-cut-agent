@@ -104,9 +104,17 @@ export VIDEO_DEVICE=/dev/v4l/by-id/usb-MACROSILICON_V-Z624_20210621-video-index0
 export VIDEO_WIDTH=1280
 export VIDEO_HEIGHT=720
 export VIDEO_FPS=30
-export VIDEO_ENCODER=x264enc
+export VIDEO_ENCODER=v4l2h264enc
 export VIDEO_BITRATE_KBPS=2500
+export VIDEO_SOURCE_FORMAT=jpeg
+export VIDEO_QUEUE_BUFFERS=1
+export VIDEO_KEYFRAME_INTERVAL=30
 ```
+
+建议：
+- 优先使用 `VIDEO_ENCODER=v4l2h264enc`
+- 保持 `VIDEO_QUEUE_BUFFERS=1`，避免旧帧积压导致画面越看越慢
+- 如果采集卡支持更低延迟格式，可继续尝试 `VIDEO_SOURCE_FORMAT=raw` 或 `VIDEO_SOURCE_FORMAT=h264`
 
 前端通过：
 - `ws://<pi-ip>:8000/ws/video`

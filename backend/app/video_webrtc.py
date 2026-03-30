@@ -38,8 +38,11 @@ class VideoConfig:
     height: int = int(os.getenv("VIDEO_HEIGHT", "720"))
     fps: int = int(os.getenv("VIDEO_FPS", "30"))
     bitrate_kbps: int = int(os.getenv("VIDEO_BITRATE_KBPS", "2500"))
-    encoder: str = os.getenv("VIDEO_ENCODER", "x264enc")
+    encoder: str = os.getenv("VIDEO_ENCODER", "v4l2h264enc")
     stun_server: str = os.getenv("VIDEO_STUN_SERVER", "")
+    source_format: str = os.getenv("VIDEO_SOURCE_FORMAT", "jpeg")
+    queue_buffers: int = int(os.getenv("VIDEO_QUEUE_BUFFERS", "1"))
+    keyframe_interval: int = int(os.getenv("VIDEO_KEYFRAME_INTERVAL", "30"))
 
 
 class WebRtcSession:
@@ -97,22 +100,40 @@ class WebRtcSession:
 
     def _build_pipeline(self) -> str:
         encoder = self._encoder_pipeline()
+        source_caps = self._source_caps()
         stun_segment = f' stun-server="{self.config.stun_server}"' if self.config.stun_server else ""
         return (
             f'webrtcbin name=sendrecv bundle-policy=max-bundle{stun_segment} '
             f'v4l2src device={self.config.device} ! '
-            f'image/jpeg,width={self.config.width},height={self.config.height},framerate={self.config.fps}/1 ! '
-            'jpegdec ! videoconvert ! queue ! '
+            f'{source_caps} ! '
+            f'queue max-size-buffers={max(self.config.queue_buffers, 1)} leaky=downstream ! '
             f'{encoder} ! h264parse ! rtph264pay config-interval=1 pt=96 ! '
             'application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.'
         )
 
+    def _source_caps(self) -> str:
+        if self.config.source_format == "raw":
+            return (
+                f'video/x-raw,width={self.config.width},height={self.config.height},framerate={self.config.fps}/1'
+            )
+        if self.config.source_format == "h264":
+            return (
+                f'video/x-h264,width={self.config.width},height={self.config.height},framerate={self.config.fps}/1'
+            )
+        return (
+            f'image/jpeg,width={self.config.width},height={self.config.height},framerate={self.config.fps}/1 ! '
+            'jpegdec ! videoconvert'
+        )
+
     def _encoder_pipeline(self) -> str:
         if self.config.encoder == "v4l2h264enc":
-            return f"v4l2h264enc extra-controls=controls,video_bitrate={self.config.bitrate_kbps * 1000}"
+            return (
+                "v4l2h264enc "
+                f"extra-controls=controls,video_bitrate={self.config.bitrate_kbps * 1000},repeat_sequence_header=1,h264_i_frame_period={max(self.config.keyframe_interval, 1)}"
+            )
         return (
             f"x264enc tune=zerolatency speed-preset=ultrafast bitrate={self.config.bitrate_kbps} "
-            "key-int-max=30"
+            f"key-int-max={max(self.config.keyframe_interval, 1)} bframes=0 rc-lookahead=0 sync-lookahead=0 sliced-threads=true"
         )
 
     def _on_negotiation_needed(self, element: Any) -> None:
@@ -236,4 +257,7 @@ class VideoWebRtcManager:
             "fps": self.config.fps,
             "encoder": self.config.encoder,
             "bitrate_kbps": self.config.bitrate_kbps,
+            "source_format": self.config.source_format,
+            "queue_buffers": self.config.queue_buffers,
+            "keyframe_interval": self.config.keyframe_interval,
         }
