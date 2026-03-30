@@ -28,7 +28,7 @@ Environment=VIDEO_DEVICE=/dev/v4l/by-id/usb-MACROSILICON_V-Z624_20210621-video-i
 Environment=VIDEO_WIDTH=1280
 Environment=VIDEO_HEIGHT=720
 Environment=VIDEO_FPS=30
-Environment=VIDEO_ENCODER=v4l2h264enc
+Environment=VIDEO_ENCODER=x264enc
 Environment=VIDEO_BITRATE_KBPS=2500
 Environment=VIDEO_STUN_SERVER=
 Environment=VIDEO_SOURCE_FORMAT=jpeg

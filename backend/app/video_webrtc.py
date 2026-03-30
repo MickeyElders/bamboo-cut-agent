@@ -38,7 +38,7 @@ class VideoConfig:
     height: int = int(os.getenv("VIDEO_HEIGHT", "720"))
     fps: int = int(os.getenv("VIDEO_FPS", "30"))
     bitrate_kbps: int = int(os.getenv("VIDEO_BITRATE_KBPS", "2500"))
-    encoder: str = os.getenv("VIDEO_ENCODER", "v4l2h264enc")
+    encoder: str = os.getenv("VIDEO_ENCODER", "x264enc")
     stun_server: str = os.getenv("VIDEO_STUN_SERVER", "")
     source_format: str = os.getenv("VIDEO_SOURCE_FORMAT", "jpeg")
     queue_buffers: int = int(os.getenv("VIDEO_QUEUE_BUFFERS", "1"))
@@ -108,7 +108,7 @@ class WebRtcSession:
             f'v4l2src device={self.config.device} ! '
             f'{source_caps} ! '
             f'queue max-size-buffers={max(self.config.queue_buffers, 1)} leaky=downstream ! '
-            f'{pre_encoder}{encoder} ! h264parse ! rtph264pay config-interval=1 pt=96 ! '
+            f'{pre_encoder}{encoder} ! h264parse ! rtph264pay config-interval=1 aggregate-mode=zero-latency pt=96 ! '
             'application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.'
         )
 
@@ -140,7 +140,7 @@ class WebRtcSession:
     def _pre_encoder_pipeline(self) -> str:
         if self.config.encoder == "v4l2h264enc":
             return "videoconvert ! video/x-raw,format=I420 ! "
-        return ""
+        return "videoconvert ! video/x-raw,format=I420 ! "
 
     def _on_negotiation_needed(self, element: Any) -> None:
         promise = Gst.Promise.new_with_change_func(self._on_offer_created, element, None)
