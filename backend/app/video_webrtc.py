@@ -101,13 +101,14 @@ class WebRtcSession:
     def _build_pipeline(self) -> str:
         encoder = self._encoder_pipeline()
         source_caps = self._source_caps()
+        pre_encoder = self._pre_encoder_pipeline()
         stun_segment = f' stun-server="{self.config.stun_server}"' if self.config.stun_server else ""
         return (
             f'webrtcbin name=sendrecv bundle-policy=max-bundle{stun_segment} '
             f'v4l2src device={self.config.device} ! '
             f'{source_caps} ! '
             f'queue max-size-buffers={max(self.config.queue_buffers, 1)} leaky=downstream ! '
-            f'{encoder} ! h264parse ! rtph264pay config-interval=1 pt=96 ! '
+            f'{pre_encoder}{encoder} ! h264parse ! rtph264pay config-interval=1 pt=96 ! '
             'application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.'
         )
 
@@ -135,6 +136,11 @@ class WebRtcSession:
             f"x264enc tune=zerolatency speed-preset=ultrafast bitrate={self.config.bitrate_kbps} "
             f"key-int-max={max(self.config.keyframe_interval, 1)} bframes=0 rc-lookahead=0 sync-lookahead=0 sliced-threads=true"
         )
+
+    def _pre_encoder_pipeline(self) -> str:
+        if self.config.encoder == "v4l2h264enc":
+            return "videoconvert ! video/x-raw,format=I420 ! "
+        return ""
 
     def _on_negotiation_needed(self, element: Any) -> None:
         promise = Gst.Promise.new_with_change_func(self._on_offer_created, element, None)
