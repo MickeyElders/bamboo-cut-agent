@@ -1,4 +1,4 @@
-.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service service-status service-restart service-logs
+.PHONY: help backend-venv backend-install backend-update backend-run frontend-install frontend-update frontend-build frontend-run canmv-tail deploy install-service service-status service-restart service-logs prepare-scripts
 
 SHELL := /bin/bash
 
@@ -56,18 +56,30 @@ frontend-run:
 canmv-tail:
 	cat $(SERIAL)
 
-deploy:
+prepare-scripts:
+	python3 - <<'PY'
+from pathlib import Path
+for rel in ("scripts/start-bamboo.sh",):
+    path = Path(rel)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
+PY
+	chmod +x scripts/start-bamboo.sh
+
+deploy: prepare-scripts
 	$(MAKE) backend-update
 	$(MAKE) frontend-build
 	@if systemctl list-unit-files | grep -q "^$(SERVICE_FILE)"; then \
+		sudo cp systemd/$(SERVICE_FILE) /etc/systemd/system/$(SERVICE_FILE); \
+		sudo systemctl daemon-reload; \
+		sudo systemctl enable "$(SERVICE_FILE)"; \
 		sudo systemctl reset-failed "$(SERVICE_FILE)" || true; \
 		sudo systemctl restart "$(SERVICE_FILE)"; \
 	else \
 		echo "Skip restart: systemd unit $(SERVICE_FILE) not found"; \
 	fi
 
-install-service:
-	chmod +x scripts/start-bamboo.sh
+install-service: prepare-scripts
 	sudo cp systemd/$(SERVICE_FILE) /etc/systemd/system/$(SERVICE_FILE)
 	sudo systemctl daemon-reload
 	sudo systemctl enable $(SERVICE_FILE)
