@@ -221,6 +221,16 @@ CANMV_CUT_REQUEST_INPUT_PIN=24
 LIGHT_GPIO_PIN=10
 LIGHT_LED_COUNT=16
 LIGHT_BRIGHTNESS=255
+CUTTER_PULSE_PIN=17
+CUTTER_DIR_PIN=27
+CUTTER_ENABLE_PIN=22
+CUTTER_DIR_DOWN_VALUE=1
+CUTTER_PULSE_ACTIVE_HIGH=0
+CUTTER_DIR_ACTIVE_HIGH=0
+CUTTER_ENABLE_ACTIVE_HIGH=0
+CUTTER_PULSE_HZ=300
+CUTTER_DOWN_STEPS=800
+CUTTER_UP_STEPS=800
 ```
 
 ### CanMV Hard Trigger GPIO Path
@@ -254,6 +264,27 @@ LIGHT_BRIGHTNESS=255
 说明：
 - `LIGHT_LED_COUNT` 必须和实际灯珠数量一致
 - `LIGHT_BRIGHTNESS` 范围为 `0-255`
+
+### Prototype Cutter Wiring: Raspberry Pi GPIO -> DM542
+
+原型验证阶段，刀轴可以先由树莓派 GPIO 直接输出 `PUL/DIR/ENA` 信号到 `DM542`：
+
+- `BCM GPIO17 / physical pin 11` -> `PUL-`
+- `BCM GPIO27 / physical pin 13` -> `DIR-`
+- `BCM GPIO22 / physical pin 15` -> `ENA-`
+- `Raspberry Pi GND / physical pin 6` -> 控制地 / 外部 5V 负极
+
+控制端推荐先按共阳方式接：
+
+- 外部 `+5V` -> `PUL+`
+- 外部 `+5V` -> `DIR+`
+- 外部 `+5V` -> `ENA+`
+
+说明：
+- 这是一套原型验证接法，只用于上下点动测试
+- `CUTTER_DIR_DOWN_VALUE=1` 表示 `DIR` 置为“1”时按“下压”方向运动
+- `CUTTER_DOWN_STEPS` / `CUTTER_UP_STEPS` 决定每次按钮动作的固定步数
+- `CUTTER_PULSE_HZ` 决定点动速度，建议先从低速开始
 
 ### Enable Raspberry Pi Serial
 

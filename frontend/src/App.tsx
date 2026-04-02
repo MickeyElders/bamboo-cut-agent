@@ -121,6 +121,15 @@ export default function App() {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const signalRef = useRef<WebSocket | null>(null);
   const cutDirtyRef = useRef(false);
+  const aiFrameRef = useRef<AiFrame>({
+    timestamp: Date.now() / 1000,
+    detections: [],
+    cut_request: false,
+  });
+  const cutConfigRef = useRef<CutConfig>(DEFAULT_CUT_CONFIG);
+  const videoConfigRef = useRef<VideoConfig>(EMPTY_VIDEO);
+  const overlayFrameRef = useRef<number | null>(null);
+  const aiFrameUiPendingRef = useRef<number | null>(null);
 
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(EMPTY_SYSTEM);
   const [systemMaintenance, setSystemMaintenance] = useState<SystemMaintenanceSnapshot | null>(null);
@@ -171,6 +180,18 @@ export default function App() {
   }, [cutDirty]);
 
   useEffect(() => {
+    aiFrameRef.current = aiFrame;
+  }, [aiFrame]);
+
+  useEffect(() => {
+    cutConfigRef.current = cutConfig;
+  }, [cutConfig]);
+
+  useEffect(() => {
+    videoConfigRef.current = videoConfig;
+  }, [videoConfig]);
+
+  useEffect(() => {
     fetchVideoConfig()
       .then((config) => {
         setVideoConfig(config);
@@ -205,7 +226,13 @@ export default function App() {
       const message = JSON.parse(event.data) as UiMessage;
       if (message.type === "ai_frame") {
         const frame = message.payload;
-        setAiFrame(frame);
+        aiFrameRef.current = frame;
+        if (aiFrameUiPendingRef.current === null) {
+          aiFrameUiPendingRef.current = window.setTimeout(() => {
+            aiFrameUiPendingRef.current = null;
+            setAiFrame(aiFrameRef.current);
+          }, 50);
+        }
         setSystemStatus((prev) => ({
           ...prev,
           canmv_connected: true,
@@ -237,13 +264,58 @@ export default function App() {
     const video = videoRef.current;
     if (!canvas || !video) return;
 
-    canvas.width = video.videoWidth || videoConfig.width || 1280;
-    canvas.height = video.videoHeight || videoConfig.height || 720;
-    drawVisionOverlay(canvas, aiFrame.detections, cutConfig, Boolean(aiFrame.cut_request));
-  }, [aiFrame, cutConfig, videoConfig.width, videoConfig.height]);
+    const syncCanvasSize = () => {
+      const width = video.videoWidth || videoConfigRef.current.width || 1280;
+      const height = video.videoHeight || videoConfigRef.current.height || 720;
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+    };
+
+    const drawCurrentOverlay = () => {
+      syncCanvasSize();
+      const frame = aiFrameRef.current;
+      drawVisionOverlay(canvas, frame.detections, cutConfigRef.current, Boolean(frame.cut_request));
+    };
+
+    type VideoWithFrameCallback = HTMLVideoElement & {
+      requestVideoFrameCallback?: (callback: () => void) => number;
+      cancelVideoFrameCallback?: (handle: number) => void;
+    };
+
+    const videoWithFrameCallback = video as VideoWithFrameCallback;
+    let rafId = 0;
+
+    if (typeof videoWithFrameCallback.requestVideoFrameCallback === "function") {
+      const tick = () => {
+        drawCurrentOverlay();
+        overlayFrameRef.current = videoWithFrameCallback.requestVideoFrameCallback?.(tick) ?? null;
+      };
+      overlayFrameRef.current = videoWithFrameCallback.requestVideoFrameCallback(tick);
+    } else {
+      const tick = () => {
+        drawCurrentOverlay();
+        rafId = window.requestAnimationFrame(tick);
+      };
+      rafId = window.requestAnimationFrame(tick);
+      overlayFrameRef.current = rafId;
+    }
+
+    return () => {
+      if (typeof videoWithFrameCallback.cancelVideoFrameCallback === "function" && overlayFrameRef.current !== null) {
+        videoWithFrameCallback.cancelVideoFrameCallback(overlayFrameRef.current);
+      }
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      overlayFrameRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
+      if (aiFrameUiPendingRef.current !== null) {
+        window.clearTimeout(aiFrameUiPendingRef.current);
+      }
       signalRef.current?.close();
       peerRef.current?.close();
     };
@@ -261,10 +333,22 @@ export default function App() {
     setVideoError("");
     const peer = new RTCPeerConnection({ iceServers: [] });
     peerRef.current = peer;
-    peer.addTransceiver("video", { direction: "recvonly" });
+    const transceiver = peer.addTransceiver("video", { direction: "recvonly" });
+    const receiver = transceiver.receiver as RTCRtpReceiver & { playoutDelayHint?: number; jitterBufferTarget?: number };
+    if ("playoutDelayHint" in receiver) {
+      receiver.playoutDelayHint = 0;
+    }
+    if ("jitterBufferTarget" in receiver) {
+      receiver.jitterBufferTarget = 0;
+    }
 
     peer.ontrack = (event) => {
       if (videoRef.current) {
+        try {
+          event.track.contentHint = "motion";
+        } catch {
+          // ignore unsupported browsers
+        }
         videoRef.current.srcObject = event.streams[0];
         void videoRef.current.play().catch(() => setVideoError("视频播放失败"));
         videoRef.current.onloadedmetadata = () => {

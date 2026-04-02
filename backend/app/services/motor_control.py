@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ..gpio_outputs import LightController
 from ..models import AiFrame, EventItem
+from ..stepper_cutter import StepperCutter
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class MotorController:
         self._gpio_cut_request_active = False
         self._prefer_gpio_cut_request = False
         self._light = LightController()
+        self._cutter = StepperCutter()
         self._events: deque[EventItem] = deque(maxlen=int(os.getenv("RUNTIME_EVENT_LIMIT", "20")))
         self._event_log_path = Path(os.getenv("RUNTIME_EVENT_LOG_PATH", Path(__file__).resolve().parents[2] / "data" / "runtime_events.jsonl"))
         self._event_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +91,8 @@ class MotorController:
 
         if not self._light.available:
             self._record_event("hardware", "warning", "light_unavailable", f"灯光驱动不可用: {self._light.error or 'unknown'}")
+        if not self._cutter.available:
+            self._record_event("hardware", "warning", "cutter_unavailable", f"刀轴驱动不可用: {self._cutter.error or 'unknown'}")
 
         self._record_event("system", "info", "init", "控制器初始化完成")
         logger.info("motor controller initialized status=%s", self._status_snapshot())
@@ -147,10 +151,10 @@ class MotorController:
                 self._status.clamp_engaged = False
             elif cmd == "cutter_down":
                 self._ensure_manual(cmd)
-                self._status.cutter_down = True
+                await self._run_cutter_move_locked(True)
             elif cmd == "cutter_up":
                 self._ensure_manual(cmd)
-                self._status.cutter_down = False
+                await self._run_cutter_move_locked(False)
             elif cmd == "light_on":
                 self._status.light_on = self._light.set_on(True)
                 self._status.light_active_leds = self._light.led_count
@@ -316,11 +320,11 @@ class MotorController:
         await self._sleep_ms(self._clamp_ms)
 
     async def _stage_cutting(self) -> None:
-        await self._apply_auto_state(cutter_down=True, auto_state="cutting", last_action="cutter_down_auto")
-        await self._sleep_ms(self._cut_down_ms)
+        await self._apply_auto_state(auto_state="cutting", last_action="cutter_down_auto")
+        await self._run_cutter_move(True)
         await self._sleep_ms(self._cut_hold_ms)
-        await self._apply_auto_state(cutter_down=False, auto_state="blade_return", last_action="cutter_up_auto")
-        await self._sleep_ms(self._cut_up_ms)
+        await self._apply_auto_state(auto_state="blade_return", last_action="cutter_up_auto")
+        await self._run_cutter_move(False)
 
     async def _stage_release(self) -> None:
         await self._apply_auto_state(clamp_engaged=False, auto_state="release", last_action="clamp_release_auto")
@@ -399,6 +403,7 @@ class MotorController:
             self._status.light_active_leds = 0
             self._sync_light_status_locked()
             self._light.close()
+            self._cutter.close()
             self._record_event_locked("system", "info", "shutdown", "控制器已安全停机")
             logger.info("motor controller shutdown complete status=%s", self._status_snapshot())
 
@@ -418,6 +423,36 @@ class MotorController:
         self._status.light_red = self._light.red
         self._status.light_green = self._light.green
         self._status.light_blue = self._light.blue
+
+    async def _run_cutter_move_locked(self, down: bool) -> None:
+        if not self._cutter.available:
+            raise ValueError(f"刀轴驱动不可用: {self._cutter.error or 'unknown'}")
+        try:
+            if down:
+                await self._cutter.move_down()
+            else:
+                await self._cutter.move_up()
+        except Exception as exc:
+            self._set_fault_locked("cutter_motion_failed", f"刀轴运动失败: {exc}")
+            self._status.cutter_down = False
+            raise ValueError(f"刀轴运动失败: {exc}") from exc
+
+        self._status.cutter_down = down
+
+    async def _run_cutter_move(self, down: bool) -> None:
+        try:
+            if down:
+                await self._cutter.move_down()
+            else:
+                await self._cutter.move_up()
+        except Exception as exc:
+            async with self._lock:
+                self._set_fault_locked("cutter_motion_failed", f"刀轴运动失败: {exc}")
+                self._status.cutter_down = False
+            raise ValueError(f"刀轴运动失败: {exc}") from exc
+
+        async with self._lock:
+            self._status.cutter_down = down
 
     def _combined_cut_request_active_locked(self) -> bool:
         if self._prefer_gpio_cut_request:
