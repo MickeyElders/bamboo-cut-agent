@@ -12,6 +12,13 @@ export function formatCutterTravel(state: CutterAxisState) {
   return "未配置";
 }
 
+export function formatCutterPosition(state: CutterAxisState) {
+  if (state.available === false && !state.position_known) {
+    return "无反馈";
+  }
+  return formatMillimeters(state.current_position_mm);
+}
+
 export function formatCutterDriverState(state: CutterAxisState, fallbackError = "") {
   if (fallbackError || state.error) return "异常";
   if (state.available === false) return "离线";
@@ -20,5 +27,6 @@ export function formatCutterDriverState(state: CutterAxisState, fallbackError = 
 }
 
 export function getCutterAxisSummary(state: CutterAxisState, fallbackError = "") {
-  return `${formatCutterZeroState(state.position_known)} | 行程 ${formatCutterTravel(state)} | ${formatCutterDriverState(state, fallbackError)}`;
+  const jogState = state.jog_supported ? "可微调" : "不可微调";
+  return `${formatCutterZeroState(state.position_known)} | 行程 ${formatCutterTravel(state)} | ${formatCutterDriverState(state, fallbackError)} | ${jogState}`;
 }

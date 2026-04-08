@@ -58,6 +58,7 @@ class StepperCutter:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._stop_requested = threading.Event()
         self.pulse_pin = self._parse_pin(os.getenv("CUTTER_PULSE_PIN"))
         self.dir_pin = self._parse_pin(os.getenv("CUTTER_DIR_PIN"))
         self.enable_pin = self._parse_pin(os.getenv("CUTTER_ENABLE_PIN"))
@@ -103,11 +104,14 @@ class StepperCutter:
             self._dir = _SignalLine(None, active_high=True)
             self._enable = _SignalLine(None, active_high=True)
 
-    async def move_down(self) -> None:
-        await asyncio.to_thread(self._move_sync, True, self.down_steps)
+    async def move_down(self) -> int:
+        return await asyncio.to_thread(self._move_sync, True, self.down_steps)
 
-    async def move_up(self) -> None:
-        await asyncio.to_thread(self._move_sync, False, self.up_steps)
+    async def move_up(self) -> int:
+        return await asyncio.to_thread(self._move_sync, False, self.up_steps)
+
+    async def stop_motion(self) -> None:
+        self._stop_requested.set()
 
     def close(self) -> None:
         self._set_enabled(False)
@@ -115,14 +119,16 @@ class StepperCutter:
         self._dir.close()
         self._enable.close()
 
-    def _move_sync(self, down: bool, steps: int) -> None:
+    def _move_sync(self, down: bool, steps: int) -> int:
         if not self.available:
             raise RuntimeError(self.error or "stepper cutter unavailable")
 
         half_period_s = max(0.0002, 0.5 / float(self.pulse_hz))
         direction_asserted = self.dir_down_value if down else (not self.dir_down_value)
+        completed_steps = 0
 
         with self._lock:
+            self._stop_requested.clear()
             self._set_enabled(True)
             if self.enable_setup_ms > 0:
                 time.sleep(self.enable_setup_ms / 1000.0)
@@ -132,10 +138,15 @@ class StepperCutter:
                 time.sleep(self.dir_setup_ms / 1000.0)
 
             for _ in range(max(1, steps)):
+                if self._stop_requested.is_set():
+                    break
                 self._pulse.pulse(half_period_s)
+                completed_steps += 1
 
             if self.disable_after_move:
                 self._set_enabled(False)
+
+        return completed_steps
 
     def _set_enabled(self, enabled: bool) -> None:
         if not self._enable.available:

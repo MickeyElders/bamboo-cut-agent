@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from ..models import CutConfig, CutConfigUpdate, CutterAxisState, CutterAxisUpdate
+from ..models import CutConfig, CutConfigUpdate, CutterAxisJogRequest, CutterAxisState, CutterAxisUpdate
 from ..services import runtime
 
 router = APIRouter()
@@ -56,3 +56,8 @@ async def update_cutter_axis(req: CutterAxisUpdate) -> CutterAxisState:
 @router.post("/api/cutter-axis/zero", response_model=CutterAxisState)
 async def set_cutter_axis_zero() -> CutterAxisState:
     return await runtime.motor.set_cutter_axis_zero_here()
+
+
+@router.post("/api/cutter-axis/jog", response_model=CutterAxisState)
+async def jog_cutter_axis(req: CutterAxisJogRequest) -> CutterAxisState:
+    return await runtime.motor.jog_cutter_axis(direction=req.direction, distance_mm=req.distance_mm)

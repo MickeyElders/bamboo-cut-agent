@@ -49,6 +49,7 @@ class DkcProgramCutter:
     def __init__(self) -> None:
         self.up_pin = self._parse_pin(os.getenv("CUTTER_TRIGGER_UP_PIN") or os.getenv("DKC_TRIGGER_UP_PIN"))
         self.down_pin = self._parse_pin(os.getenv("CUTTER_TRIGGER_DOWN_PIN") or os.getenv("DKC_TRIGGER_DOWN_PIN"))
+        self.stop_pin = self._parse_pin(os.getenv("CUTTER_TRIGGER_STOP_PIN") or os.getenv("DKC_TRIGGER_STOP_PIN"))
         self.active_high = self._parse_bool(os.getenv("CUTTER_TRIGGER_ACTIVE_HIGH", "1"), default=True)
         self.pulse_ms = max(20, int(os.getenv("CUTTER_TRIGGER_PULSE_MS", "120")))
         self.available = False
@@ -62,11 +63,13 @@ class DkcProgramCutter:
 
             self._up = _TriggerLine(self.up_pin, active_high=self.active_high)
             self._down = _TriggerLine(self.down_pin, active_high=self.active_high)
+            self._stop = _TriggerLine(self.stop_pin, active_high=self.active_high)
             self.available = True
             logger.info(
-                "dkc program cutter ready up_pin=%s down_pin=%s pulse_ms=%s",
+                "dkc program cutter ready up_pin=%s down_pin=%s stop_pin=%s pulse_ms=%s",
                 self.up_pin,
                 self.down_pin,
+                self.stop_pin,
                 self.pulse_ms,
             )
         except Exception as exc:
@@ -75,6 +78,7 @@ class DkcProgramCutter:
             logger.exception("dkc program cutter init failed")
             self._up = _TriggerLine(None, active_high=True)
             self._down = _TriggerLine(None, active_high=True)
+            self._stop = _TriggerLine(None, active_high=True)
 
     async def move_down(self) -> None:
         await asyncio.to_thread(self._down.pulse, self.pulse_ms / 1000.0)
@@ -82,9 +86,15 @@ class DkcProgramCutter:
     async def move_up(self) -> None:
         await asyncio.to_thread(self._up.pulse, self.pulse_ms / 1000.0)
 
+    async def stop_motion(self) -> None:
+        if not self._stop.available:
+            raise RuntimeError("CUTTER_TRIGGER_STOP_PIN is not configured")
+        await asyncio.to_thread(self._stop.pulse, self.pulse_ms / 1000.0)
+
     def close(self) -> None:
         self._up.close()
         self._down.close()
+        self._stop.close()
 
     @staticmethod
     def _parse_pin(value: str | None) -> int | None:

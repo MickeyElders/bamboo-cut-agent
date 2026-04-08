@@ -89,6 +89,10 @@ export function stopCutter() {
   return postCommand("/api/control/cutter", { action: "up" });
 }
 
+export function stopCutterMotion() {
+  return postCommand("/api/control/cutter", { action: "stop" });
+}
+
 export function applyLightCount(count: number) {
   return postCommand("/api/control/light", { action: "set_count", value: count });
 }

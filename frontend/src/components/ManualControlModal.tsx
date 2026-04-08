@@ -8,6 +8,10 @@ type ManualControlModalProps = {
   manualMode: boolean;
   error: string;
   pendingAction: string | null;
+  cutterMotionActive: boolean;
+  cutterMotionDirection: string | null;
+  cutterStopSupported: boolean;
+  cutterStopRequested: boolean;
   cutterPositionKnown: boolean;
   cutterPositionMm: number;
   onExit: () => void;
@@ -17,6 +21,7 @@ type ManualControlModalProps = {
   onReleaseClamp: () => void;
   onStartCutter: () => void;
   onStopCutter: () => void;
+  onAbortCutter: () => void;
 };
 
 export function ManualControlModal(props: ManualControlModalProps) {
@@ -25,6 +30,10 @@ export function ManualControlModal(props: ManualControlModalProps) {
     manualMode,
     error,
     pendingAction,
+    cutterMotionActive,
+    cutterMotionDirection,
+    cutterStopSupported,
+    cutterStopRequested,
     cutterPositionKnown,
     cutterPositionMm,
     onExit,
@@ -33,10 +42,10 @@ export function ManualControlModal(props: ManualControlModalProps) {
     onEngageClamp,
     onReleaseClamp,
     onStartCutter,
-    onStopCutter
+    onStopCutter,
+    onAbortCutter
   } = props;
-
-  const controlsDisabled = !manualMode || pendingAction !== null;
+  const cutterDirectionText = cutterMotionDirection === "down" ? "下压中" : cutterMotionDirection === "up" ? "抬起中" : "空闲";
 
   if (!open) return null;
 
@@ -72,31 +81,53 @@ export function ManualControlModal(props: ManualControlModalProps) {
 
       {pendingAction ? (
         <div className="summary-card summary-card-info">
-          <span>执行中</span>
+          <span>请求中</span>
           <strong>{pendingAction}</strong>
         </div>
       ) : null}
 
+      <SummaryTileGrid
+        tone="info"
+        items={[
+          { label: "刀轴状态", value: cutterMotionActive ? cutterDirectionText : "空闲", tone: cutterMotionActive ? "warning" : "success" },
+          {
+            label: "停止能力",
+            value: cutterStopSupported ? (cutterStopRequested ? "停止请求已发出" : "可中止") : "未配置",
+            tone: cutterStopSupported ? (cutterStopRequested ? "warning" : "success") : "warning",
+          },
+        ]}
+      />
+
       <div className="controls controls-single">
-        <button className="primary" onClick={onStartFeed} disabled={controlsDisabled}>
+        <button className="primary" onClick={onStartFeed} disabled={!manualMode}>
           启动送料
         </button>
-        <button onClick={onStopFeed} disabled={controlsDisabled}>
+        <button onClick={onStopFeed} disabled={!manualMode}>
           停止送料
         </button>
-        <button className="primary" onClick={onEngageClamp} disabled={controlsDisabled}>
+        <button className="primary" onClick={onEngageClamp} disabled={!manualMode}>
           压紧夹持
         </button>
-        <button onClick={onReleaseClamp} disabled={controlsDisabled}>
+        <button onClick={onReleaseClamp} disabled={!manualMode}>
           释放夹持
         </button>
-        <button className="primary" onClick={onStartCutter} disabled={controlsDisabled}>
+        <button className="primary" onClick={onStartCutter} disabled={!manualMode || cutterMotionActive}>
           切刀下压
         </button>
-        <button onClick={onStopCutter} disabled={controlsDisabled}>
+        <button onClick={onStopCutter} disabled={!manualMode || cutterMotionActive}>
           切刀抬起
         </button>
+        <button className="warning" onClick={onAbortCutter} disabled={!manualMode || !cutterMotionActive || !cutterStopSupported}>
+          停止刀轴
+        </button>
       </div>
+
+      {!cutterStopSupported ? (
+        <div className="summary-card summary-card-warning">
+          <span>安全提示</span>
+          <strong>当前刀轴驱动尚未配置“停止当前运动”能力。请在控制器侧补齐停止位后再进行高风险调试。</strong>
+        </div>
+      ) : null}
 
       <div className="modal-actions modal-actions-single">
         <button className="mode-button" onClick={onExit}>

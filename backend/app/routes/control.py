@@ -49,6 +49,8 @@ async def control_cutter(req: ActionControlRequest) -> CommandAck:
         return await runtime.execute_control("cutter_down")
     if req.action == "up":
         return await runtime.execute_control("cutter_up")
+    if req.action == "stop":
+        return await runtime.execute_control("cutter_stop")
     raise HTTPException(status_code=400, detail=f"Unsupported cutter action: {req.action}")
 
 

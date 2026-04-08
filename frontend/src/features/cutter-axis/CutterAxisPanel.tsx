@@ -1,7 +1,6 @@
 import type { CutterAxisState } from "../../types";
-import { formatMillimeters } from "../../utils/ui";
 import { SummaryTileGrid } from "../../components/SummaryTileGrid";
-import { formatCutterDriverState, formatCutterTravel, formatCutterZeroState, getCutterAxisSummary } from "./formatters";
+import { formatCutterDriverState, formatCutterPosition, formatCutterTravel, formatCutterZeroState, getCutterAxisSummary } from "./formatters";
 
 type CutterAxisPanelProps = {
   state: CutterAxisState;
@@ -74,8 +73,9 @@ export function CutterAxisPanel({ state, error }: CutterAxisPanelProps) {
         className="island-grid-secondary"
         items={[
           { label: "零点状态", value: formatCutterZeroState(state.position_known), tone },
-          { label: "当前位置", value: state.position_known ? formatMillimeters(state.current_position_mm) : "未校准", tone },
+          { label: "当前位置", value: formatCutterPosition(state), tone },
           { label: "刀轴行程", value: formatCutterTravel(state), tone },
+          { label: "临时调整", value: state.jog_supported ? "可用" : "不可用", tone: state.jog_supported ? "info" : "warning" },
           { label: "驱动", value: formatCutterDriverState(state, error), tone: error || state.error ? "danger" : state.available ? "info" : "warning" },
         ]}
       />

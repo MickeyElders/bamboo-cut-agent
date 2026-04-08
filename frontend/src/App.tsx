@@ -16,6 +16,7 @@ import {
   startCutter,
   startFeed,
   stopCutter,
+  stopCutterMotion,
   stopFeed,
   uiWsUrl,
   videoWsUrl,
@@ -174,14 +175,18 @@ export default function App() {
     state: cutterAxisState,
     error: cutterAxisError,
     strokeInput: cutterStrokeInput,
+    jogStepInput: cutterJogStepInput,
     saving: cutterSaving,
     zeroing: cutterZeroing,
+    jogging: cutterJogging,
     modalOpen: cutterModalOpen,
     openModal: openCutterModal,
     closeModal: closeCutterModal,
     setStrokeInput: setCutterStrokeInput,
+    setJogStepInput: setCutterJogStepInput,
     saveStroke: saveCutterStroke,
     setZero: setCutterZero,
+    jog: jogCutterAxis,
     syncFromSnapshot: syncCutterAxisFromSnapshot,
   } = useCutterAxis();
 
@@ -190,6 +195,10 @@ export default function App() {
   const connectionState = wsConnected ? "在线" : "离线";
   const cutSummary = useMemo(() => getCutSummary(cutConfig), [cutConfig]);
   const lightSummary = useMemo(() => getLightSummary(lightCount, lightBrightness, lightColor), [lightCount, lightBrightness, lightColor]);
+  const cutterMotionActive = Boolean(systemStatus.job_status?.cutter_motion_active);
+  const cutterMotionDirection = systemStatus.job_status?.cutter_motion_direction ?? null;
+  const cutterStopSupported = Boolean(systemStatus.job_status?.cutter_stop_supported);
+  const cutterStopRequested = Boolean(systemStatus.job_status?.cutter_stop_requested);
 
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
@@ -735,6 +744,10 @@ export default function App() {
         manualMode={manualMode}
         error={controlError}
         pendingAction={manualActionPending}
+        cutterMotionActive={cutterMotionActive}
+        cutterMotionDirection={cutterMotionDirection}
+        cutterStopSupported={cutterStopSupported}
+        cutterStopRequested={cutterStopRequested}
         cutterPositionKnown={cutterAxisState.position_known}
         cutterPositionMm={cutterAxisState.current_position_mm}
         onExit={handleReturnAutoMode}
@@ -742,8 +755,9 @@ export default function App() {
         onStopFeed={() => void runManualControl(stopFeed, "正在停止送料")}
         onEngageClamp={() => void runManualControl(engageClamp, "正在压紧夹持")}
         onReleaseClamp={() => void runManualControl(releaseClamp, "正在释放夹持")}
-        onStartCutter={() => void runManualControl(startCutter, "正在执行切刀下压")}
-        onStopCutter={() => void runManualControl(stopCutter, "正在执行切刀抬起")}
+        onStartCutter={() => void runManualControl(startCutter, "正在请求切刀下压")}
+        onStopCutter={() => void runManualControl(stopCutter, "正在请求切刀抬起")}
+        onAbortCutter={() => void runManualControl(stopCutterMotion, "正在请求停止刀轴")}
       />
 
       <CutterCalibrationModal
@@ -751,13 +765,18 @@ export default function App() {
         manualMode={manualMode}
         state={cutterAxisState}
         strokeInput={cutterStrokeInput}
+        jogStepInput={cutterJogStepInput}
         saving={cutterSaving}
         zeroing={cutterZeroing}
+        jogging={cutterJogging}
         error={cutterAxisError}
         onClose={closeCutterModal}
         onStrokeInputChange={setCutterStrokeInput}
+        onJogStepInputChange={setCutterJogStepInput}
         onSaveStroke={() => void saveCutterStroke()}
         onSetZero={() => void setCutterZero()}
+        onJogForward={() => void jogCutterAxis("forward")}
+        onJogReverse={() => void jogCutterAxis("reverse")}
       />
 
       <SystemMaintenanceModal

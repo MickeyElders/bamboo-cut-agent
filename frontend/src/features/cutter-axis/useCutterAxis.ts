@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CutterAxisState } from "../../types";
-import { fetchCutterAxis, saveCutterAxis, setCutterAxisZero } from "./api";
+import { fetchCutterAxis, jogCutterAxis, saveCutterAxis, setCutterAxisZero } from "./api";
 
 const DEFAULT_CUTTER_AXIS: CutterAxisState = {
   position_known: false,
@@ -18,6 +18,8 @@ export function useCutterAxis() {
   const [modalOpen, setModalOpen] = useState(false);
   const [zeroing, setZeroing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [jogging, setJogging] = useState(false);
+  const [jogStepInput, setJogStepInput] = useState("0.50");
 
   const syncFromSnapshot = useCallback((snapshot?: CutterAxisState | null) => {
     if (!snapshot) return;
@@ -74,6 +76,28 @@ export function useCutterAxis() {
     }
   }, []);
 
+  const jog = useCallback(
+    async (direction: "forward" | "reverse") => {
+      const distance = Number(jogStepInput);
+      if (!(distance > 0)) {
+        setError("请先填写有效的临时调整步长");
+        return;
+      }
+
+      setJogging(true);
+      setError("");
+      try {
+        const next = await jogCutterAxis(direction, distance);
+        setState(next);
+      } catch (jogError) {
+        setError(jogError instanceof Error ? jogError.message : "执行刀轴临时调整失败");
+      } finally {
+        setJogging(false);
+      }
+    },
+    [jogStepInput],
+  );
+
   const openModal = useCallback(() => {
     setModalOpen(true);
     void load();
@@ -89,12 +113,16 @@ export function useCutterAxis() {
     strokeInput,
     saving,
     zeroing,
+    jogging,
     modalOpen,
+    jogStepInput,
     openModal,
     closeModal,
     setStrokeInput,
+    setJogStepInput,
     saveStroke,
     setZero,
+    jog,
     syncFromSnapshot,
     reload: load,
   };

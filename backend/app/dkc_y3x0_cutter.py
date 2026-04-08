@@ -38,6 +38,7 @@ class DkcY3x0Cutter:
         self.down_trigger_m = self._parse_optional_int(os.getenv("DKC_CUTTER_DOWN_M"), default=1)
         self.up_trigger_m = self._parse_optional_int(os.getenv("DKC_CUTTER_UP_M"), default=2)
         self.zero_trigger_m = self._parse_optional_int(os.getenv("DKC_CUTTER_ZERO_M"), default=3)
+        self.stop_trigger_m = self._parse_optional_int(os.getenv("DKC_CUTTER_STOP_M"), default=None)
         self.busy_m = self._parse_optional_int(os.getenv("DKC_CUTTER_BUSY_M"), default=10)
         self.done_m = self._parse_optional_int(os.getenv("DKC_CUTTER_DONE_M"), default=11)
         self.fault_m = self._parse_optional_int(os.getenv("DKC_CUTTER_FAULT_M"), default=12)
@@ -115,6 +116,12 @@ class DkcY3x0Cutter:
     async def set_zero_position(self, position_mm: float = 0.0) -> float | None:
         return await asyncio.to_thread(self._set_zero_position_sync, position_mm)
 
+    async def jog_relative_mm(self, delta_mm: float) -> float | None:
+        return await asyncio.to_thread(self._jog_relative_mm_sync, delta_mm)
+
+    async def stop_motion(self) -> None:
+        await asyncio.to_thread(self._stop_motion_sync)
+
     async def read_position_mm(self) -> float | None:
         return await asyncio.to_thread(self._read_position_mm_sync)
 
@@ -155,6 +162,26 @@ class DkcY3x0Cutter:
         self._client.write_d_int32(self.zero_target_d, self._encode_position_mm(position_mm), low_word_first=self.low_word_first)
         self._trigger_program(self.zero_trigger_m, "zero")
         return self._read_position_mm_sync()
+
+    def _jog_relative_mm_sync(self, delta_mm: float) -> float | None:
+        self._ensure_ready()
+        current = self._read_position_mm_sync()
+        if current is None:
+            raise RuntimeError("当前位置不可用，无法执行临时调整")
+
+        target = round(current + float(delta_mm), 4)
+        speed_hz = self.down_default_speed if delta_mm >= 0 else self.up_default_speed
+        target_d = self.down_target_d if delta_mm >= 0 else self.up_target_d
+        speed_d = self.down_speed_d if delta_mm >= 0 else self.up_speed_d
+        trigger_m = self.down_trigger_m if delta_mm >= 0 else self.up_trigger_m
+        label = "jog_down" if delta_mm >= 0 else "jog_up"
+        return self._move_absolute(target, speed_hz, target_d, speed_d, trigger_m, label)
+
+    def _stop_motion_sync(self) -> None:
+        self._ensure_ready()
+        if self.stop_trigger_m is None:
+            raise RuntimeError("DKC_CUTTER_STOP_M is not configured")
+        self._trigger_program(self.stop_trigger_m, "stop")
 
     def _trigger_program(self, bit_index: int | None, label: str) -> None:
         self._ensure_ready()

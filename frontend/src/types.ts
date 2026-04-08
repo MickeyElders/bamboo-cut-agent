@@ -28,6 +28,7 @@ export type CutterAxisState = {
   current_position_mm: number;
   stroke_mm?: number | null;
   available?: boolean;
+  jog_supported?: boolean;
   driver?: string | null;
   error?: string | null;
   updated_at?: number | null;
@@ -64,6 +65,10 @@ export type JobStatus = {
   cycle_count: number;
   last_action: string;
   cut_request_active: boolean;
+  cutter_motion_active?: boolean;
+  cutter_motion_direction?: string | null;
+  cutter_stop_supported?: boolean;
+  cutter_stop_requested?: boolean;
   fault_active?: boolean;
   fault_code?: string | null;
   fault_detail?: string | null;

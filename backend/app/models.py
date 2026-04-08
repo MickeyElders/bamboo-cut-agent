@@ -47,6 +47,7 @@ class CutterAxisState(BaseModel):
     current_position_mm: float = 0.0
     stroke_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
     available: bool = False
+    jog_supported: bool = False
     driver: str | None = None
     error: str | None = None
     updated_at: float | None = None
@@ -58,6 +59,11 @@ class CutterAxisUpdate(BaseModel):
     stroke_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
     stroke_up_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
     stroke_down_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+
+
+class CutterAxisJogRequest(BaseModel):
+    direction: str
+    distance_mm: float = Field(gt=0.0, le=1000.0)
 
 
 class LightControlRequest(BaseModel):
@@ -82,6 +88,10 @@ class JobStatus(BaseModel):
     cycle_count: int
     last_action: str
     cut_request_active: bool
+    cutter_motion_active: bool = False
+    cutter_motion_direction: str | None = None
+    cutter_stop_supported: bool = False
+    cutter_stop_requested: bool = False
     fault_active: bool = False
     fault_code: str | None = None
     fault_detail: str | None = None

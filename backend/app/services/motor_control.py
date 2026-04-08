@@ -38,11 +38,16 @@ class _MotorStatus:
     light_green: int = 255
     light_blue: int = 255
     cutter_available: bool = False
+    cutter_jog_supported: bool = False
     cutter_driver: str = "unavailable"
     cutter_error: str | None = None
     cutter_position_known: bool = False
     cutter_position_mm: float = 0.0
     cutter_stroke_mm: float | None = None
+    cutter_motion_active: bool = False
+    cutter_motion_direction: str | None = None
+    cutter_stop_supported: bool = False
+    cutter_stop_requested: bool = False
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0
@@ -63,6 +68,7 @@ class MotorController:
         self._status = _MotorStatus()
         self._lock = asyncio.Lock()
         self._auto_task: asyncio.Task | None = None
+        self._cutter_motion_task: asyncio.Task | None = None
         self._uart_cut_request_active = False
         self._gpio_cut_request_active = False
         self._prefer_gpio_cut_request = False
@@ -89,6 +95,7 @@ class MotorController:
         self._status.light_green = self._light.green
         self._status.light_blue = self._light.blue
         self._sync_cutter_status_locked()
+        self._status.cutter_stop_supported = self._cutter_supports_stop()
 
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
@@ -131,24 +138,42 @@ class MotorController:
             return self._read_event_history_locked(limit, category=category, level=level, since=since)
 
     async def command(self, cmd: str, value: int | None = None) -> dict[str, object]:
+        if cmd == "cutter_down":
+            logger.info("motor command received cmd=%s value=%s", cmd, value)
+            return await self._start_cutter_motion(True)
+        if cmd == "cutter_up":
+            logger.info("motor command received cmd=%s value=%s", cmd, value)
+            return await self._start_cutter_motion(False)
+        if cmd == "cutter_stop":
+            logger.info("motor command received cmd=%s value=%s", cmd, value)
+            return await self._stop_cutter_motion()
+
         async with self._lock:
             logger.info("motor command received cmd=%s value=%s", cmd, value)
             if cmd == "mode_manual":
                 await self._cancel_auto_task_locked()
+                await self._cancel_cutter_motion_locked()
                 self._clear_fault_locked()
                 self._status.mode = "manual"
                 self._status.feed_running = False
                 self._status.clamp_engaged = False
                 self._status.cutter_down = False
+                self._status.cutter_motion_active = False
+                self._status.cutter_motion_direction = None
+                self._status.cutter_stop_requested = False
                 self._status.cut_request_active = False
                 self._status.auto_state = "manual_ready"
             elif cmd == "mode_auto":
                 await self._cancel_auto_task_locked()
+                await self._cancel_cutter_motion_locked()
                 self._clear_fault_locked()
                 self._status.mode = "auto"
                 self._status.feed_running = True
                 self._status.clamp_engaged = False
                 self._status.cutter_down = False
+                self._status.cutter_motion_active = False
+                self._status.cutter_motion_direction = None
+                self._status.cutter_stop_requested = False
                 self._status.cut_request_active = False
                 self._status.auto_state = "feeding"
             elif cmd == "feed_start":
@@ -163,12 +188,6 @@ class MotorController:
             elif cmd == "clamp_release":
                 self._ensure_manual(cmd)
                 self._status.clamp_engaged = False
-            elif cmd == "cutter_down":
-                self._ensure_manual(cmd)
-                await self._run_cutter_move_locked(True)
-            elif cmd == "cutter_up":
-                self._ensure_manual(cmd)
-                await self._run_cutter_move_locked(False)
             elif cmd == "light_on":
                 self._status.light_on = self._light.set_on(True)
                 self._status.light_active_leds = self._light.led_count
@@ -182,17 +201,25 @@ class MotorController:
                 self._status.light_on = self._status.light_active_leds > 0
             elif cmd == "emergency_stop":
                 await self._cancel_auto_task_locked()
+                await self._cancel_cutter_motion_locked()
                 self._status.feed_running = False
                 self._status.clamp_engaged = False
                 self._status.cutter_down = False
+                self._status.cutter_motion_active = False
+                self._status.cutter_motion_direction = None
+                self._status.cutter_stop_requested = False
                 self._status.cut_request_active = False
                 self._status.auto_state = "emergency_stop"
                 self._set_fault_locked("emergency_stop", "设备已进入急停状态")
             elif cmd == "fault_reset":
                 await self._cancel_auto_task_locked()
+                await self._cancel_cutter_motion_locked()
                 self._status.feed_running = False
                 self._status.clamp_engaged = False
                 self._status.cutter_down = False
+                self._status.cutter_motion_active = False
+                self._status.cutter_motion_direction = None
+                self._status.cutter_stop_requested = False
                 self._status.cut_request_active = False
                 self._status.auto_state = "manual_ready" if self._status.mode == "manual" else "feeding"
                 self._clear_fault_locked()
@@ -440,9 +467,13 @@ class MotorController:
         async with self._lock:
             logger.info("motor controller shutdown begin")
             await self._cancel_auto_task_locked()
+            await self._cancel_cutter_motion_locked()
             self._status.feed_running = False
             self._status.clamp_engaged = False
             self._status.cutter_down = False
+            self._status.cutter_motion_active = False
+            self._status.cutter_motion_direction = None
+            self._status.cutter_stop_requested = False
             self._status.cut_request_active = False
             self._status.light_on = self._light.reset()
             self._status.light_active_leds = 0
@@ -451,6 +482,181 @@ class MotorController:
             self._cutter.close()
             self._record_event_locked("system", "info", "shutdown", "控制器已安全停机")
             logger.info("motor controller shutdown complete status=%s", self._status_snapshot())
+
+    async def _start_cutter_motion(self, down: bool) -> dict[str, object]:
+        direction = "down" if down else "up"
+        async with self._lock:
+            self._ensure_manual(f"cutter_{direction}")
+            if not self._cutter.available:
+                raise ValueError(f"刀轴驱动不可用: {self._cutter.error or 'unknown'}")
+            if self._cutter_motion_task is not None and not self._cutter_motion_task.done():
+                active_direction = self._status.cutter_motion_direction or "unknown"
+                raise ValueError(f"刀轴正在{self._describe_cutter_direction(active_direction)}，请先停止当前动作")
+
+            self._status.cutter_motion_active = True
+            self._status.cutter_motion_direction = direction
+            self._status.cutter_stop_requested = False
+            self._status.last_action = f"cutter_{direction}_start"
+            self._record_event_locked("control", "info", self._status.last_action, f"刀轴开始{self._describe_cutter_direction(direction)}")
+            self._cutter_motion_task = asyncio.create_task(self._run_manual_cutter_motion(down))
+            snapshot = self._status_snapshot()
+
+        logger.info("manual cutter motion started direction=%s", direction)
+        return snapshot
+
+    async def _stop_cutter_motion(self) -> dict[str, object]:
+        async with self._lock:
+            if self._status.mode != "manual":
+                raise ValueError("刀轴停止仅允许在手动模式下执行")
+            task = self._cutter_motion_task
+            if task is None or task.done():
+                raise ValueError("当前没有正在执行的刀轴动作")
+            if not self._cutter_supports_stop():
+                raise ValueError("当前刀轴驱动不支持中途中止，请配置停止位后再使用")
+
+            self._status.cutter_stop_requested = True
+            self._status.last_action = "cutter_stop_requested"
+            self._record_event_locked("control", "warning", "cutter_stop_requested", "已请求停止当前刀轴动作")
+            snapshot = self._status_snapshot()
+
+        await self._cutter.stop_motion()
+        logger.info("manual cutter stop requested")
+        return snapshot
+
+    async def _run_manual_cutter_motion(self, down: bool) -> None:
+        direction = "down" if down else "up"
+        completed = False
+        error: Exception | None = None
+        position_mm: float | None = None
+        interrupted = False
+        current_task = asyncio.current_task()
+
+        try:
+            position_mm, interrupted = await self._execute_cutter_move(down)
+            completed = True
+        except asyncio.CancelledError:
+            logger.info("manual cutter motion cancelled direction=%s", direction)
+            raise
+        except Exception as exc:
+            error = exc
+            logger.warning("manual cutter motion failed direction=%s detail=%s", direction, exc)
+
+        async with self._lock:
+            if self._cutter_motion_task is current_task:
+                self._cutter_motion_task = None
+
+            self._status.cutter_motion_active = False
+            self._status.cutter_motion_direction = None
+            stop_requested = self._status.cutter_stop_requested
+            self._status.cutter_stop_requested = False
+            self._last_cutter_status_refresh_ts = 0.0
+
+            if error is not None:
+                if stop_requested:
+                    self._status.last_action = "cutter_stop_completed"
+                    self._record_event_locked("control", "warning", "cutter_stop_completed", "刀轴动作已被停止")
+                else:
+                    self._set_fault_locked("cutter_motion_failed", f"刀轴运动失败: {error}")
+                    self._status.cutter_down = False
+                    self._status.last_action = "cutter_motion_failed"
+            elif completed:
+                if position_mm is None:
+                    if not interrupted:
+                        self._apply_cutter_axis_state_locked(self._cutter_axis.apply_motion(down=down))
+                else:
+                    self._apply_cutter_axis_state_locked(
+                        self._cutter_axis.update(
+                            CutterAxisUpdate(
+                                position_known=True,
+                                current_position_mm=position_mm,
+                            )
+                        )
+                    )
+
+                self._status.cutter_down = down if not interrupted else self._status.cutter_down
+                if interrupted or stop_requested:
+                    self._status.last_action = "cutter_stop_completed"
+                    self._record_event_locked(
+                        "control",
+                        "warning",
+                        "cutter_stop_completed",
+                        f"刀轴{self._describe_cutter_direction(direction)}已中止",
+                    )
+                else:
+                    self._status.cutter_down = down
+                    self._status.last_action = f"cutter_{direction}_complete"
+                    self._record_event_locked(
+                        "control",
+                        "info",
+                        self._status.last_action,
+                        f"刀轴{self._describe_cutter_direction(direction)}完成",
+                    )
+
+            logger.info("manual cutter motion ended direction=%s status=%s", direction, self._status_snapshot())
+
+    async def _execute_cutter_move(self, down: bool) -> tuple[float | None, bool]:
+        if self._cutter_supports_programmed_moves():
+            target_position, _ = await self._prepare_programmed_cutter_move(down)
+            if down:
+                result = await self._cutter.move_down_to(target_position)
+            else:
+                result = await self._cutter.move_up_to(target_position)
+            actual_position = target_position if result is None else result
+            interrupted = abs(actual_position - target_position) > 0.05
+            return actual_position, interrupted
+
+        if down:
+            result = await self._cutter.move_down()
+        else:
+            result = await self._cutter.move_up()
+
+        expected_steps = getattr(self._cutter, "down_steps" if down else "up_steps", None)
+        interrupted = isinstance(result, int) and expected_steps is not None and result < expected_steps
+        return None, interrupted
+
+    async def _prepare_programmed_cutter_move(
+        self,
+        down: bool,
+        *,
+        distance_mm: float | None = None,
+        require_known_position: bool = True,
+    ) -> tuple[float, float]:
+        async with self._lock:
+            state = self._cutter_axis.get()
+            if require_known_position and not state.position_known:
+                raise ValueError("请先在刀轴标定中将当前位置设为零点")
+
+            resolved_distance = distance_mm if distance_mm is not None else state.stroke_mm
+            if resolved_distance is None:
+                raise ValueError("请先保存刀轴行程")
+
+            fallback_position = state.current_position_mm
+
+        base_position = await self._cutter.read_position_mm()
+        if base_position is None:
+            base_position = fallback_position
+
+        target_position = round(base_position + resolved_distance, 4) if down else round(base_position - resolved_distance, 4)
+        return target_position, base_position
+
+    async def _cancel_cutter_motion_locked(self) -> None:
+        task = self._cutter_motion_task
+        self._cutter_motion_task = None
+        if task is not None:
+            if self._cutter_supports_stop():
+                with contextlib.suppress(Exception):
+                    await self._cutter.stop_motion()
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    @staticmethod
+    def _describe_cutter_direction(direction: str) -> str:
+        if direction == "down":
+            return "下压"
+        if direction == "up":
+            return "抬起"
+        return direction
 
     def _ensure_manual(self, cmd: str) -> None:
         if self._status.mode != "manual":
@@ -471,8 +677,10 @@ class MotorController:
 
     def _sync_cutter_status_locked(self) -> None:
         self._status.cutter_available = self._cutter.available
+        self._status.cutter_jog_supported = self._cutter_supports_jog()
         self._status.cutter_driver = getattr(self._cutter, "driver_name", "unknown")
         self._status.cutter_error = self._cutter.error
+        self._status.cutter_stop_supported = self._cutter_supports_stop()
         self._apply_cutter_axis_state_locked(self._cutter_axis.get())
 
     def _apply_cutter_axis_state_locked(self, state: CutterAxisState) -> None:
@@ -486,6 +694,7 @@ class MotorController:
             current_position_mm=self._status.cutter_position_mm,
             stroke_mm=self._status.cutter_stroke_mm,
             available=self._status.cutter_available,
+            jog_supported=self._status.cutter_jog_supported,
             driver=self._status.cutter_driver,
             error=self._status.cutter_error,
         )
@@ -540,6 +749,61 @@ class MotorController:
 
     def _cutter_supports_fault_status(self) -> bool:
         return hasattr(self._cutter, "read_fault_active")
+
+    def _cutter_supports_stop(self) -> bool:
+        return hasattr(self._cutter, "stop_motion")
+
+    def _cutter_supports_jog(self) -> bool:
+        return hasattr(self._cutter, "jog_relative_mm") or self._cutter_supports_programmed_moves()
+
+    async def jog_cutter_axis(self, *, direction: str, distance_mm: float) -> CutterAxisState:
+        direction_normalized = direction.strip().lower()
+        if direction_normalized not in {"forward", "reverse", "down", "up"}:
+            raise ValueError(f"Unsupported cutter jog direction: {direction}")
+
+        down = direction_normalized in {"forward", "down"}
+
+        async with self._lock:
+            self._ensure_manual("cutter_jog")
+            if not self._cutter.available:
+                raise ValueError(f"刀轴驱动不可用: {self._cutter.error or 'unknown'}")
+            if self._cutter_motion_task is not None and not self._cutter_motion_task.done():
+                raise ValueError("刀轴正在运动中，请先等待当前动作结束或停止当前动作")
+            if not self._cutter_supports_jog():
+                raise ValueError("当前刀轴驱动不支持临时调整")
+
+        position = await self._execute_cutter_jog(down=down, distance_mm=distance_mm)
+
+        async with self._lock:
+            self._status.cutter_down = down
+            self._status.last_action = "cutter_jog_down" if down else "cutter_jog_up"
+            self._last_cutter_status_refresh_ts = 0.0
+            self._apply_cutter_axis_state_locked(
+                self._cutter_axis.update(
+                    CutterAxisUpdate(
+                        current_position_mm=position if position is not None else self._status.cutter_position_mm,
+                    )
+                )
+            )
+            self._record_event_locked(
+                "control",
+                "info",
+                self._status.last_action,
+                f"刀轴临时调整 {self._describe_cutter_direction('down' if down else 'up')} {distance_mm:.3f} mm",
+            )
+            return self._current_cutter_axis_state_locked()
+
+    async def _execute_cutter_jog(self, *, down: bool, distance_mm: float) -> float | None:
+        if hasattr(self._cutter, "jog_relative_mm"):
+            result = await self._cutter.jog_relative_mm(distance_mm if down else -distance_mm)
+            return None if result is None else float(result)
+
+        target_position, _ = await self._prepare_programmed_cutter_move(down, distance_mm=distance_mm, require_known_position=False)
+        if down:
+            result = await self._cutter.move_down_to(target_position)
+        else:
+            result = await self._cutter.move_up_to(target_position)
+        return target_position if result is None else result
 
     async def _run_programmed_cutter_move_locked(self, down: bool) -> float:
         state = self._cutter_axis.get()
