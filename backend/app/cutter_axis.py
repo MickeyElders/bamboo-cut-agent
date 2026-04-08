@@ -18,8 +18,9 @@ class CutterAxisStore:
         return self._state.model_copy(deep=True)
 
     def update(self, patch: CutterAxisUpdate) -> CutterAxisState:
-        merged = self._state.model_dump()
+        merged = self._persistent_dump(self._state)
         merged.update(patch.model_dump(exclude_unset=True, exclude_none=True))
+        merged = self._normalize_payload(merged)
         merged["updated_at"] = time.time()
         self._state = CutterAxisState.model_validate(merged)
         self._save()
@@ -32,12 +33,10 @@ class CutterAxisStore:
         state = self._state
         if not state.position_known:
             return self.get()
-        if down and state.stroke_down_mm is None:
-            return self.get()
-        if (not down) and state.stroke_up_mm is None:
+        if state.stroke_mm is None:
             return self.get()
 
-        delta = state.stroke_down_mm if down else -state.stroke_up_mm
+        delta = state.stroke_mm if down else -state.stroke_mm
         current = round(state.current_position_mm + delta, 4)
         return self.update(CutterAxisUpdate(current_position_mm=current))
 
@@ -50,6 +49,7 @@ class CutterAxisStore:
 
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
+            data = self._normalize_payload(data)
             return CutterAxisState.model_validate(data)
         except Exception:
             state = self._default_state()
@@ -64,6 +64,22 @@ class CutterAxisStore:
 
     def _save(self) -> None:
         self._path.write_text(
-            json.dumps(self._state.model_dump(), ensure_ascii=True, indent=2),
+            json.dumps(self._persistent_dump(self._state), ensure_ascii=True, indent=2),
             encoding="utf-8",
         )
+
+    def _persistent_dump(self, state: CutterAxisState) -> dict[str, object]:
+        return state.model_dump(exclude={"available", "driver", "error"})
+
+    def _normalize_payload(self, data: dict[str, object]) -> dict[str, object]:
+        normalized = dict(data)
+        if normalized.get("stroke_mm") is None:
+            stroke_up = normalized.get("stroke_up_mm")
+            stroke_down = normalized.get("stroke_down_mm")
+            if stroke_up is not None:
+                normalized["stroke_mm"] = stroke_up
+            elif stroke_down is not None:
+                normalized["stroke_mm"] = stroke_down
+        normalized.pop("stroke_up_mm", None)
+        normalized.pop("stroke_down_mm", None)
+        return normalized

@@ -1,4 +1,4 @@
-﻿import type { CommandAck, CutConfig, CutterAxisState, EventItem, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
+﻿import type { CommandAck, CutConfig, EventItem, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -108,51 +108,6 @@ export async function saveCutConfig(config: Partial<CutConfig>) {
     throw new Error("Failed to save cut config");
   }
   return (await res.json()) as CutConfig;
-}
-
-export async function fetchCutterAxis() {
-  const res = await fetch(`${API_BASE}/api/cutter-axis`);
-  if (!res.ok) {
-    throw new Error("获取刀轴位置失败");
-  }
-  return (await res.json()) as CutterAxisState;
-}
-
-export async function setCutterAxisZero() {
-  const res = await fetch(`${API_BASE}/api/cutter-axis/zero`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const payload = (await res.json()) as { detail?: string };
-      detail = payload.detail ?? "";
-    } catch {
-      detail = "";
-    }
-    throw new Error(detail || "设置刀轴零点失败");
-  }
-  return (await res.json()) as CutterAxisState;
-}
-
-export async function saveCutterAxis(config: Partial<CutterAxisState>) {
-  const res = await fetch(`${API_BASE}/api/cutter-axis`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
-  });
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const payload = (await res.json()) as { detail?: string };
-      detail = payload.detail ?? "";
-    } catch {
-      detail = "";
-    }
-    throw new Error(detail || "保存刀轴步长失败");
-  }
-  return (await res.json()) as CutterAxisState;
 }
 
 export async function fetchSystemMaintenance() {

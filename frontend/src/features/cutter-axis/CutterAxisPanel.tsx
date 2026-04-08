@@ -1,6 +1,7 @@
-import type { CutterAxisState } from "../types";
-import { formatCutterDriverState, formatCutterStroke, formatCutterZeroState, getCutterAxisSummary, formatMillimeters } from "../utils/ui";
-import { SummaryTileGrid } from "./SummaryTileGrid";
+import type { CutterAxisState } from "../../types";
+import { formatMillimeters } from "../../utils/ui";
+import { SummaryTileGrid } from "../../components/SummaryTileGrid";
+import { formatCutterDriverState, formatCutterTravel, formatCutterZeroState, getCutterAxisSummary } from "./formatters";
 
 type CutterAxisPanelProps = {
   state: CutterAxisState;
@@ -9,7 +10,7 @@ type CutterAxisPanelProps = {
 
 function getPanelTone(state: CutterAxisState, error: string) {
   if (error || state.error) return "danger";
-  if (!state.position_known || state.stroke_up_mm == null || state.stroke_down_mm == null) return "warning";
+  if (!state.position_known || state.stroke_mm == null) return "warning";
   return "success";
 }
 
@@ -17,7 +18,7 @@ function getPanelBadge(state: CutterAxisState, error: string) {
   if (error || state.error) {
     return { label: "异常", badgeTone: "warn" as const, tagTone: "danger" as const };
   }
-  if (state.position_known && state.stroke_up_mm != null && state.stroke_down_mm != null) {
+  if (state.position_known && state.stroke_mm != null) {
     return { label: "已标定", badgeTone: "ok" as const, tagTone: "success" as const };
   }
   return { label: "待标定", badgeTone: "warn" as const, tagTone: "warning" as const };
@@ -38,17 +39,17 @@ function getHint(state: CutterAxisState, error: string) {
       value: "请进入手动调试，将刀轴移动到基准位后，在刀轴标定中执行设零。",
     };
   }
-  if (state.stroke_up_mm == null || state.stroke_down_mm == null) {
+  if (state.stroke_mm == null) {
     return {
       className: "summary-card summary-card-warning",
-      label: "步长提醒",
-      value: "请补全上升和下降程序步长，系统才会在动作后正确累计当前位置。",
+      label: "行程提醒",
+      value: "请先保存刀轴行程，系统才会在下压和抬起动作后正确累计当前位置。",
     };
   }
   return {
     className: "summary-card summary-card-info",
     label: "状态摘要",
-    value: "刀轴基准已完成，当前位置会在上升和下降动作后持续更新并持久化。",
+    value: "刀轴基准已完成，当前位置会在下压和抬起动作后持续更新并持久化。",
   };
 }
 
@@ -74,7 +75,7 @@ export function CutterAxisPanel({ state, error }: CutterAxisPanelProps) {
         items={[
           { label: "零点状态", value: formatCutterZeroState(state.position_known), tone },
           { label: "当前位置", value: state.position_known ? formatMillimeters(state.current_position_mm) : "未校准", tone },
-          { label: "程序步长", value: formatCutterStroke(state), tone },
+          { label: "刀轴行程", value: formatCutterTravel(state), tone },
           { label: "驱动", value: formatCutterDriverState(state, error), tone: error || state.error ? "danger" : state.available ? "info" : "warning" },
         ]}
       />

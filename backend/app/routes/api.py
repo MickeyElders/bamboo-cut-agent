@@ -45,14 +45,14 @@ async def update_cut_config(req: CutConfigUpdate) -> CutConfig:
 
 @router.get("/api/cutter-axis", response_model=CutterAxisState)
 async def get_cutter_axis() -> CutterAxisState:
-    return CutterAxisState.model_validate(await runtime.motor.cutter_axis_state())
+    return await runtime.motor.cutter_axis_state()
 
 
 @router.put("/api/cutter-axis", response_model=CutterAxisState)
 async def update_cutter_axis(req: CutterAxisUpdate) -> CutterAxisState:
-    return CutterAxisState.model_validate(await runtime.motor.update_cutter_axis(req))
+    return await runtime.motor.update_cutter_axis(req)
 
 
 @router.post("/api/cutter-axis/zero", response_model=CutterAxisState)
 async def set_cutter_axis_zero() -> CutterAxisState:
-    return CutterAxisState.model_validate(await runtime.motor.set_cutter_axis_zero_here())
+    return await runtime.motor.set_cutter_axis_zero_here()

@@ -18,7 +18,6 @@ from ..models import (
     AlertItem,
     CommandAck,
     CutConfigUpdate,
-    CutterAxisState,
     DeviceCapabilities,
     DeviceCapability,
     DeviceCommandDescriptor,
@@ -228,6 +227,7 @@ class RuntimeServices:
     async def device_status(self) -> SystemStatus:
         snapshot = self.system_status.snapshot()
         motor_status = await self.motor.status()
+        cutter_axis = await self.motor.cutter_axis_state()
         job_status = JobStatus(
             mode=str(motor_status.get("mode", "auto")),
             auto_state=str(motor_status.get("auto_state", "unknown")),
@@ -241,12 +241,7 @@ class RuntimeServices:
         return snapshot.model_copy(
             update={
                 "job_status": job_status,
-                "cutter_axis": CutterAxisState(
-                    position_known=bool(motor_status.get("cutter_position_known", False)),
-                    current_position_mm=float(motor_status.get("cutter_position_mm", 0.0)),
-                    stroke_up_mm=self._get_optional_float(motor_status.get("cutter_stroke_up_mm")),
-                    stroke_down_mm=self._get_optional_float(motor_status.get("cutter_stroke_down_mm")),
-                ),
+                "cutter_axis": cutter_axis,
                 "input_signals": [InputSignal(**item.__dict__) for item in self.inputs.snapshot()],
                 "startup_checks": self._build_startup_checks(snapshot.model_dump(), motor_status),
                 "alerts": self._build_alerts(snapshot.model_dump(), motor_status),

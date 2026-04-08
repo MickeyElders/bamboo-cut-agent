@@ -26,8 +26,7 @@ export type CommandAck = {
 export type CutterAxisState = {
   position_known: boolean;
   current_position_mm: number;
-  stroke_up_mm?: number | null;
-  stroke_down_mm?: number | null;
+  stroke_mm?: number | null;
   available?: boolean;
   driver?: string | null;
   error?: string | null;

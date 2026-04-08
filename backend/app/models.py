@@ -45,14 +45,17 @@ class ActionControlRequest(BaseModel):
 class CutterAxisState(BaseModel):
     position_known: bool = False
     current_position_mm: float = 0.0
-    stroke_up_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
-    stroke_down_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+    stroke_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+    available: bool = False
+    driver: str | None = None
+    error: str | None = None
     updated_at: float | None = None
 
 
 class CutterAxisUpdate(BaseModel):
     position_known: bool | None = None
     current_position_mm: float | None = None
+    stroke_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
     stroke_up_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
     stroke_down_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
 

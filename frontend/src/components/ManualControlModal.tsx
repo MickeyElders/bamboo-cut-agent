@@ -1,4 +1,5 @@
-import { formatCutterZeroState, formatMillimeters } from "../utils/ui";
+import { formatMillimeters } from "../utils/ui";
+import { formatCutterZeroState } from "../features/cutter-axis/formatters";
 import { ModalShell } from "./ModalShell";
 import { SummaryTileGrid } from "./SummaryTileGrid";
 
@@ -62,7 +63,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
 
       <div className="summary-card summary-card-info">
         <span>标定入口</span>
-        <strong>步长保存与零点设置已移到主界面的刀轴标定入口，这里只保留动作调试。</strong>
+        <strong>刀轴行程保存与零点设置已移到主界面的刀轴标定入口，这里只保留动作调试。</strong>
       </div>
 
       <div className="controls controls-single">

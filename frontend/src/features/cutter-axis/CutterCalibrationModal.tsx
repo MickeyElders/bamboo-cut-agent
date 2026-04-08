@@ -1,20 +1,19 @@
-import type { CutterAxisState } from "../types";
-import { formatCutterDriverState, formatCutterStroke, formatCutterZeroState, getCutterAxisSummary, formatMillimeters } from "../utils/ui";
-import { ModalShell } from "./ModalShell";
-import { SummaryTileGrid } from "./SummaryTileGrid";
+import type { CutterAxisState } from "../../types";
+import { ModalShell } from "../../components/ModalShell";
+import { SummaryTileGrid } from "../../components/SummaryTileGrid";
+import { formatMillimeters } from "../../utils/ui";
+import { formatCutterDriverState, formatCutterTravel, formatCutterZeroState, getCutterAxisSummary } from "./formatters";
 
 type CutterCalibrationModalProps = {
   open: boolean;
   manualMode: boolean;
   state: CutterAxisState;
-  strokeUpInput: string;
-  strokeDownInput: string;
+  strokeInput: string;
   saving: boolean;
   zeroing: boolean;
   error: string;
   onClose: () => void;
-  onStrokeUpInputChange: (value: string) => void;
-  onStrokeDownInputChange: (value: string) => void;
+  onStrokeInputChange: (value: string) => void;
   onSaveStroke: () => void;
   onSetZero: () => void;
 };
@@ -24,14 +23,12 @@ export function CutterCalibrationModal(props: CutterCalibrationModalProps) {
     open,
     manualMode,
     state,
-    strokeUpInput,
-    strokeDownInput,
+    strokeInput,
     saving,
     zeroing,
     error,
     onClose,
-    onStrokeUpInputChange,
-    onStrokeDownInputChange,
+    onStrokeInputChange,
     onSaveStroke,
     onSetZero,
   } = props;
@@ -48,7 +45,7 @@ export function CutterCalibrationModal(props: CutterCalibrationModalProps) {
     <ModalShell title="刀轴标定" badge={manualMode ? "手动可设零" : "自动只读"} badgeTone={manualMode ? "warn" : "ok"} onClose={onClose}>
       <div className="summary-card summary-card-info">
         <span>标定说明</span>
-        <strong>步长是固定参数，零点是当前物理位置。建议先保存步长，再在基准位执行设零。</strong>
+        <strong>刀轴行程是固定参数，零点是当前物理位置。建议先保存行程，再在基准位执行设零。</strong>
       </div>
 
       <SummaryTileGrid
@@ -56,7 +53,7 @@ export function CutterCalibrationModal(props: CutterCalibrationModalProps) {
         items={[
           { label: "零点状态", value: formatCutterZeroState(state.position_known), tone: state.position_known ? "success" : "warning" },
           { label: "当前位置", value: state.position_known ? formatMillimeters(state.current_position_mm) : "未校准", tone },
-          { label: "程序步长", value: formatCutterStroke(state), tone: state.stroke_up_mm != null && state.stroke_down_mm != null ? "info" : "warning" },
+          { label: "刀轴行程", value: formatCutterTravel(state), tone: state.stroke_mm != null ? "info" : "warning" },
           { label: "驱动", value: formatCutterDriverState(state, error), tone: error || state.error ? "danger" : state.available ? "info" : "warning" },
         ]}
       />
@@ -71,20 +68,12 @@ export function CutterCalibrationModal(props: CutterCalibrationModalProps) {
           type="number"
           min="0.001"
           step="0.001"
-          value={strokeUpInput}
-          onChange={(event) => onStrokeUpInputChange(event.target.value)}
-          placeholder="上升步长 mm"
-        />
-        <input
-          type="number"
-          min="0.001"
-          step="0.001"
-          value={strokeDownInput}
-          onChange={(event) => onStrokeDownInputChange(event.target.value)}
-          placeholder="下降步长 mm"
+          value={strokeInput}
+          onChange={(event) => onStrokeInputChange(event.target.value)}
+          placeholder="刀轴行程 mm"
         />
         <button className="primary" onClick={onSaveStroke} disabled={saving}>
-          {saving ? "正在保存..." : "保存步长"}
+          {saving ? "正在保存..." : "保存行程"}
         </button>
       </div>
 
