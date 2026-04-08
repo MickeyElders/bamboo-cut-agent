@@ -38,6 +38,11 @@ export function formatRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+export function formatMillimeters(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return "-";
+  return `${value.toFixed(2)} mm`;
+}
+
 export function formatDisk(used?: number | null, total?: number | null, percent?: number | null) {
   if (used == null || total == null || percent == null) return "-";
   return `${used.toFixed(1)} / ${total.toFixed(1)} GB (${percent.toFixed(1)}%)`;
@@ -153,6 +158,8 @@ export function formatLastAction(value?: string | null) {
       return "刀片下压";
     case "cutter_up":
       return "刀片抬起";
+    case "cutter_set_zero":
+      return "刀轴设零";
     case "light_off":
       return "关闭灯光";
     case "light_set_count":

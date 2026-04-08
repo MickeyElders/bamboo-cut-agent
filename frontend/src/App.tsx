@@ -3,18 +3,21 @@ import {
   applyLightSettings,
   engageClamp,
   executeSystemAction,
+  fetchCutterAxis,
   fetchCutConfig,
   fetchSystemEvents,
   fetchSystemMaintenance,
   fetchVideoConfig,
   releaseClamp,
   resetFault,
+  saveCutterAxis,
   saveCutConfig,
   setAutoMode,
   setManualMode,
   signalEmergencyStop,
   startCutter,
   startFeed,
+  setCutterAxisZero,
   stopCutter,
   stopFeed,
   uiWsUrl,
@@ -29,7 +32,7 @@ import { ManualControlModal } from "./components/ManualControlModal";
 import { SystemMaintenanceModal } from "./components/SystemMaintenanceModal";
 import { SystemStatusStrip } from "./components/SystemStatusStrip";
 import { VisionPanel } from "./components/VisionPanel";
-import type { AiFrame, CutConfig, EventItem, SystemMaintenanceSnapshot, SystemStatus, VideoConfig } from "./types";
+import type { AiFrame, CutConfig, CutterAxisState, EventItem, SystemMaintenanceSnapshot, SystemStatus, VideoConfig } from "./types";
 import { deriveRunState, formatRatio, getCutSummary, getLightSummary, hexToRgb } from "./utils/ui";
 
 const EMPTY_VIDEO: VideoConfig = {
@@ -69,6 +72,13 @@ const DEFAULT_LIGHT = {
   count: 16,
   brightness: 255,
   color: "#ffffff",
+};
+
+const DEFAULT_CUTTER_AXIS: CutterAxisState = {
+  position_known: false,
+  current_position_mm: 0,
+  stroke_up_mm: null,
+  stroke_down_mm: null,
 };
 
 type UiMessage = { type: "ai_frame"; payload: AiFrame } | { type: "system_status"; payload: SystemStatus };
@@ -155,6 +165,11 @@ export default function App() {
   const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
   const [manualModeSwitching, setManualModeSwitching] = useState(false);
   const [manualModeError, setManualModeError] = useState("");
+  const [cutterAxis, setCutterAxis] = useState<CutterAxisState>(DEFAULT_CUTTER_AXIS);
+  const [cutterStrokeUpInput, setCutterStrokeUpInput] = useState("");
+  const [cutterStrokeDownInput, setCutterStrokeDownInput] = useState("");
+  const [cutterZeroing, setCutterZeroing] = useState(false);
+  const [cutterSaving, setCutterSaving] = useState(false);
   const [systemModalOpen, setSystemModalOpen] = useState(false);
   const [systemLoading, setSystemLoading] = useState(false);
   const [systemApplyingAction, setSystemApplyingAction] = useState<string | null>(null);
@@ -212,6 +227,16 @@ export default function App() {
         setCutError("获取切割配置失败");
       });
 
+    fetchCutterAxis()
+      .then((state) => {
+        setCutterAxis(state);
+        setCutterStrokeUpInput(state.stroke_up_mm != null ? String(state.stroke_up_mm) : "");
+        setCutterStrokeDownInput(state.stroke_down_mm != null ? String(state.stroke_down_mm) : "");
+      })
+      .catch(() => {
+        setControlError("获取刀轴位置失败");
+      });
+
     void loadSystemMaintenance();
   }, []);
 
@@ -247,6 +272,11 @@ export default function App() {
       }
 
       setSystemStatus(message.payload);
+      if (message.payload.cutter_axis) {
+        setCutterAxis(message.payload.cutter_axis);
+        setCutterStrokeUpInput((current) => current || (message.payload.cutter_axis?.stroke_up_mm != null ? String(message.payload.cutter_axis.stroke_up_mm) : ""));
+        setCutterStrokeDownInput((current) => current || (message.payload.cutter_axis?.stroke_down_mm != null ? String(message.payload.cutter_axis.stroke_down_mm) : ""));
+      }
     };
 
     ws.onopen = () => setWsConnected(true);
@@ -529,6 +559,44 @@ export default function App() {
     });
   }
 
+  async function handleSetCutterZero() {
+    setCutterZeroing(true);
+    setControlError("");
+    try {
+      const state = await setCutterAxisZero();
+      setCutterAxis(state);
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "设置刀轴零点失败");
+    } finally {
+      setCutterZeroing(false);
+    }
+  }
+
+  async function handleSaveCutterStroke() {
+    const up = Number(cutterStrokeUpInput);
+    const down = Number(cutterStrokeDownInput);
+    if (!(up > 0) || !(down > 0)) {
+      setControlError("请先填写有效的上升和下降步长");
+      return;
+    }
+
+    setCutterSaving(true);
+    setControlError("");
+    try {
+      const state = await saveCutterAxis({
+        stroke_up_mm: up,
+        stroke_down_mm: down,
+      });
+      setCutterAxis(state);
+      setCutterStrokeUpInput(state.stroke_up_mm != null ? String(state.stroke_up_mm) : "");
+      setCutterStrokeDownInput(state.stroke_down_mm != null ? String(state.stroke_down_mm) : "");
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "保存刀轴步长失败");
+    } finally {
+      setCutterSaving(false);
+    }
+  }
+
   function handleOpenSystemMaintenance() {
     setSystemModalOpen(true);
     void loadSystemMaintenance();
@@ -700,7 +768,19 @@ export default function App() {
         open={manualModalOpen}
         manualMode={manualMode}
         error={controlError}
+        cutterPositionKnown={cutterAxis.position_known}
+        cutterPositionMm={cutterAxis.current_position_mm}
+        cutterStrokeUpMm={cutterAxis.stroke_up_mm}
+        cutterStrokeDownMm={cutterAxis.stroke_down_mm}
+        cutterStrokeUpInput={cutterStrokeUpInput}
+        cutterStrokeDownInput={cutterStrokeDownInput}
+        zeroing={cutterZeroing}
+        saving={cutterSaving}
         onExit={handleReturnAutoMode}
+        onSetZero={() => void handleSetCutterZero()}
+        onStrokeUpInputChange={setCutterStrokeUpInput}
+        onStrokeDownInputChange={setCutterStrokeDownInput}
+        onSaveStroke={() => void handleSaveCutterStroke()}
         onStartFeed={() => void runControl(startFeed)}
         onStopFeed={() => void runControl(stopFeed)}
         onEngageClamp={() => void runControl(engageClamp)}

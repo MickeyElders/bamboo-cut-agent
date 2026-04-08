@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from ..models import CutConfig, CutConfigUpdate
+from ..models import CutConfig, CutConfigUpdate, CutterAxisState, CutterAxisUpdate
 from ..services import runtime
 
 router = APIRouter()
@@ -41,3 +41,18 @@ async def update_cut_config(req: CutConfigUpdate) -> CutConfig:
     config = runtime.cut_config_store.update(req)
     await runtime.canmv_bridge.set_cut_config(config)
     return config
+
+
+@router.get("/api/cutter-axis", response_model=CutterAxisState)
+async def get_cutter_axis() -> CutterAxisState:
+    return CutterAxisState.model_validate(await runtime.motor.cutter_axis_state())
+
+
+@router.put("/api/cutter-axis", response_model=CutterAxisState)
+async def update_cutter_axis(req: CutterAxisUpdate) -> CutterAxisState:
+    return CutterAxisState.model_validate(await runtime.motor.update_cutter_axis(req))
+
+
+@router.post("/api/cutter-axis/zero", response_model=CutterAxisState)
+async def set_cutter_axis_zero() -> CutterAxisState:
+    return CutterAxisState.model_validate(await runtime.motor.set_cutter_axis_zero_here())

@@ -23,6 +23,14 @@ export type CommandAck = {
   timestamp: number;
 };
 
+export type CutterAxisState = {
+  position_known: boolean;
+  current_position_mm: number;
+  stroke_up_mm?: number | null;
+  stroke_down_mm?: number | null;
+  updated_at?: number | null;
+};
+
 export type VideoConfig = {
   enabled: boolean;
   detail?: string;
@@ -100,6 +108,7 @@ export type SystemStatus = {
   canmv_fps?: number | null;
   canmv_status?: CanMvSystemStatus | null;
   job_status?: JobStatus | null;
+  cutter_axis?: CutterAxisState | null;
   input_signals?: InputSignal[];
   startup_checks?: StartupCheck[];
   alerts?: AlertItem[];

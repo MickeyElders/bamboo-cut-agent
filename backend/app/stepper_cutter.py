@@ -54,6 +54,8 @@ class _SignalLine:
 
 
 class StepperCutter:
+    driver_name = "stepper_pulse"
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.pulse_pin = self._parse_pin(os.getenv("CUTTER_PULSE_PIN"))

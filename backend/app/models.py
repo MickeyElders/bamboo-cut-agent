@@ -42,6 +42,21 @@ class ActionControlRequest(BaseModel):
     action: str
 
 
+class CutterAxisState(BaseModel):
+    position_known: bool = False
+    current_position_mm: float = 0.0
+    stroke_up_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+    stroke_down_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+    updated_at: float | None = None
+
+
+class CutterAxisUpdate(BaseModel):
+    position_known: bool | None = None
+    current_position_mm: float | None = None
+    stroke_up_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+    stroke_down_mm: float | None = Field(default=None, gt=0.0, le=1000.0)
+
+
 class LightControlRequest(BaseModel):
     action: str
     value: int | None = None
@@ -110,6 +125,7 @@ class SystemStatus(BaseModel):
     canmv_fps: float | None = None
     canmv_status: CanMvSystemStatus | None = None
     job_status: JobStatus | None = None
+    cutter_axis: CutterAxisState | None = None
     input_signals: List[InputSignal] = Field(default_factory=list)
     startup_checks: List[StartupCheck] = Field(default_factory=list)
     alerts: List[AlertItem] = Field(default_factory=list)

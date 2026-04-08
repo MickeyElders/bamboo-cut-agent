@@ -18,6 +18,7 @@ from ..models import (
     AlertItem,
     CommandAck,
     CutConfigUpdate,
+    CutterAxisState,
     DeviceCapabilities,
     DeviceCapability,
     DeviceCommandDescriptor,
@@ -240,6 +241,12 @@ class RuntimeServices:
         return snapshot.model_copy(
             update={
                 "job_status": job_status,
+                "cutter_axis": CutterAxisState(
+                    position_known=bool(motor_status.get("cutter_position_known", False)),
+                    current_position_mm=float(motor_status.get("cutter_position_mm", 0.0)),
+                    stroke_up_mm=self._get_optional_float(motor_status.get("cutter_stroke_up_mm")),
+                    stroke_down_mm=self._get_optional_float(motor_status.get("cutter_stroke_down_mm")),
+                ),
                 "input_signals": [InputSignal(**item.__dict__) for item in self.inputs.snapshot()],
                 "startup_checks": self._build_startup_checks(snapshot.model_dump(), motor_status),
                 "alerts": self._build_alerts(snapshot.model_dump(), motor_status),
@@ -475,6 +482,14 @@ class RuntimeServices:
             return None
         text = str(value)
         return text if text else None
+
+    def _get_optional_float(self, value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _build_local_uid(self) -> str:
         node = uuid.getnode()

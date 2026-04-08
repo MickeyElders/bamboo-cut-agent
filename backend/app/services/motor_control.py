@@ -10,8 +10,11 @@ from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from ..cutter_axis import CutterAxisStore
+from ..dkc_cutter import DkcProgramCutter
+from ..dkc_y3x0_cutter import DkcY3x0Cutter
 from ..gpio_outputs import LightController
-from ..models import AiFrame, EventItem
+from ..models import AiFrame, CutterAxisState, CutterAxisUpdate, EventItem
 from ..stepper_cutter import StepperCutter
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,13 @@ class _MotorStatus:
     light_red: int = 255
     light_green: int = 255
     light_blue: int = 255
+    cutter_available: bool = False
+    cutter_driver: str = "unavailable"
+    cutter_error: str | None = None
+    cutter_position_known: bool = False
+    cutter_position_mm: float = 0.0
+    cutter_stroke_up_mm: float | None = None
+    cutter_stroke_down_mm: float | None = None
     cut_request_active: bool = False
     auto_state: str = "manual_ready"
     cycle_count: int = 0
@@ -58,7 +68,10 @@ class MotorController:
         self._gpio_cut_request_active = False
         self._prefer_gpio_cut_request = False
         self._light = LightController()
-        self._cutter = StepperCutter()
+        self._cutter_axis = CutterAxisStore(path=os.getenv("CUTTER_AXIS_PATH"))
+        self._cutter = self._build_cutter_driver()
+        self._cutter_status_refresh_s = max(0.2, float(os.getenv("CUTTER_STATUS_REFRESH_S", "1.0")))
+        self._last_cutter_status_refresh_ts = 0.0
         self._events: deque[EventItem] = deque(maxlen=int(os.getenv("RUNTIME_EVENT_LIMIT", "20")))
         self._event_log_path = Path(os.getenv("RUNTIME_EVENT_LOG_PATH", Path(__file__).resolve().parents[2] / "data" / "runtime_events.jsonl"))
         self._event_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,6 +89,7 @@ class MotorController:
         self._status.light_red = self._light.red
         self._status.light_green = self._light.green
         self._status.light_blue = self._light.blue
+        self._sync_cutter_status_locked()
 
         self._clamp_ms = int(os.getenv("CLAMP_MS", "250"))
         self._cut_down_ms = int(os.getenv("CUT_DOWN_MS", "400"))
@@ -99,6 +113,7 @@ class MotorController:
 
     async def status(self) -> dict[str, object]:
         async with self._lock:
+            await self._refresh_cutter_live_state_locked()
             return self._status_snapshot()
 
     async def recent_events(self) -> list[EventItem]:
@@ -205,6 +220,61 @@ class MotorController:
             )
             logger.info("motor light configured status=%s", self._status_snapshot())
             return self._status_snapshot()
+
+    async def cutter_axis_state(self) -> dict[str, object]:
+        async with self._lock:
+            await self._refresh_cutter_live_state_locked()
+            return {
+                "position_known": self._status.cutter_position_known,
+                "current_position_mm": self._status.cutter_position_mm,
+                "stroke_up_mm": self._status.cutter_stroke_up_mm,
+                "stroke_down_mm": self._status.cutter_stroke_down_mm,
+                "available": self._status.cutter_available,
+                "driver": self._status.cutter_driver,
+                "error": self._status.cutter_error,
+            }
+
+    async def set_cutter_axis_zero_here(self) -> dict[str, object]:
+        async with self._lock:
+            self._ensure_manual("cutter_set_zero")
+            if self._cutter_supports_zeroing():
+                position = await self._cutter.set_zero_position(0.0)
+                state = self._cutter_axis.update(
+                    CutterAxisUpdate(
+                        position_known=True,
+                        current_position_mm=0.0 if position is None else position,
+                    )
+                )
+            else:
+                state = self._cutter_axis.mark_zero_here()
+            self._apply_cutter_axis_state_locked(state)
+            self._status.last_action = "cutter_set_zero"
+            self._record_event_locked("control", "info", "cutter_set_zero", "刀轴当前位置已设为零点")
+            return {
+                "position_known": self._status.cutter_position_known,
+                "current_position_mm": self._status.cutter_position_mm,
+                "stroke_up_mm": self._status.cutter_stroke_up_mm,
+                "stroke_down_mm": self._status.cutter_stroke_down_mm,
+                "available": self._status.cutter_available,
+                "driver": self._status.cutter_driver,
+                "error": self._status.cutter_error,
+            }
+
+    async def update_cutter_axis(self, patch: CutterAxisUpdate) -> dict[str, object]:
+        async with self._lock:
+            state = self._cutter_axis.update(patch)
+            self._apply_cutter_axis_state_locked(state)
+            await self._refresh_cutter_live_state_locked(force=True)
+            self._record_event_locked("control", "info", "cutter_axis_update", "刀轴位置参数已更新")
+            return {
+                "position_known": self._status.cutter_position_known,
+                "current_position_mm": self._status.cutter_position_mm,
+                "stroke_up_mm": self._status.cutter_stroke_up_mm,
+                "stroke_down_mm": self._status.cutter_stroke_down_mm,
+                "available": self._status.cutter_available,
+                "driver": self._status.cutter_driver,
+                "error": self._status.cutter_error,
+            }
 
     async def set_cut_request_gpio_enabled(self, enabled: bool) -> None:
         async with self._lock:
@@ -424,35 +494,132 @@ class MotorController:
         self._status.light_green = self._light.green
         self._status.light_blue = self._light.blue
 
+    def _sync_cutter_status_locked(self) -> None:
+        self._status.cutter_available = self._cutter.available
+        self._status.cutter_driver = getattr(self._cutter, "driver_name", "unknown")
+        self._status.cutter_error = self._cutter.error
+        self._apply_cutter_axis_state_locked(self._cutter_axis.get())
+
+    def _apply_cutter_axis_state_locked(self, state: CutterAxisState) -> None:
+        self._status.cutter_position_known = state.position_known
+        self._status.cutter_position_mm = state.current_position_mm
+        self._status.cutter_stroke_up_mm = state.stroke_up_mm
+        self._status.cutter_stroke_down_mm = state.stroke_down_mm
+
     async def _run_cutter_move_locked(self, down: bool) -> None:
         if not self._cutter.available:
             raise ValueError(f"刀轴驱动不可用: {self._cutter.error or 'unknown'}")
         try:
-            if down:
-                await self._cutter.move_down()
+            if self._cutter_supports_programmed_moves():
+                position = await self._run_programmed_cutter_move_locked(down)
             else:
-                await self._cutter.move_up()
+                if down:
+                    await self._cutter.move_down()
+                else:
+                    await self._cutter.move_up()
+                position = None
         except Exception as exc:
             self._set_fault_locked("cutter_motion_failed", f"刀轴运动失败: {exc}")
             self._status.cutter_down = False
             raise ValueError(f"刀轴运动失败: {exc}") from exc
 
         self._status.cutter_down = down
+        self._last_cutter_status_refresh_ts = 0.0
+        if position is None:
+            self._apply_cutter_axis_state_locked(self._cutter_axis.apply_motion(down=down))
+        else:
+            self._apply_cutter_axis_state_locked(
+                self._cutter_axis.update(
+                    CutterAxisUpdate(
+                        position_known=True,
+                        current_position_mm=position,
+                    )
+                )
+            )
 
     async def _run_cutter_move(self, down: bool) -> None:
-        try:
-            if down:
-                await self._cutter.move_down()
-            else:
-                await self._cutter.move_up()
-        except Exception as exc:
-            async with self._lock:
-                self._set_fault_locked("cutter_motion_failed", f"刀轴运动失败: {exc}")
-                self._status.cutter_down = False
-            raise ValueError(f"刀轴运动失败: {exc}") from exc
-
         async with self._lock:
-            self._status.cutter_down = down
+            await self._run_cutter_move_locked(down)
+
+    def _build_cutter_driver(self):
+        if os.getenv("DKC_SERIAL_PORT"):
+            return DkcY3x0Cutter()
+        if os.getenv("CUTTER_TRIGGER_UP_PIN") or os.getenv("DKC_TRIGGER_UP_PIN"):
+            return DkcProgramCutter()
+        return StepperCutter()
+
+    def _cutter_supports_programmed_moves(self) -> bool:
+        return hasattr(self._cutter, "move_down_to") and hasattr(self._cutter, "move_up_to") and hasattr(self._cutter, "read_position_mm")
+
+    def _cutter_supports_zeroing(self) -> bool:
+        return hasattr(self._cutter, "set_zero_position")
+
+    def _cutter_supports_fault_status(self) -> bool:
+        return hasattr(self._cutter, "read_fault_active")
+
+    async def _run_programmed_cutter_move_locked(self, down: bool) -> float:
+        state = self._cutter_axis.get()
+        if not state.position_known:
+            raise ValueError("请先在手动调试中将当前位置设为零点")
+
+        distance_mm = state.stroke_down_mm if down else state.stroke_up_mm
+        if distance_mm is None:
+            raise ValueError("请先保存刀轴上下步长")
+
+        base_position = await self._cutter.read_position_mm()
+        if base_position is None:
+            base_position = state.current_position_mm
+
+        target_position = round(base_position + distance_mm, 4) if down else round(max(0.0, base_position - distance_mm), 4)
+        if down:
+            result = await self._cutter.move_down_to(target_position)
+        else:
+            result = await self._cutter.move_up_to(target_position)
+        return target_position if result is None else result
+
+    async def _refresh_cutter_live_state_locked(self, *, force: bool = False) -> None:
+        if not self._cutter.available:
+            return
+
+        now = time.time()
+        if not force and now - self._last_cutter_status_refresh_ts < self._cutter_status_refresh_s:
+            return
+        self._last_cutter_status_refresh_ts = now
+
+        position_mm: float | None = None
+        fault_active: bool | None = None
+        refresh_failed = False
+
+        if hasattr(self._cutter, "read_position_mm"):
+            try:
+                position_mm = await self._cutter.read_position_mm()
+            except Exception as exc:
+                refresh_failed = True
+                self._status.cutter_error = str(exc)
+                logger.warning("failed to refresh cutter position: %s", exc)
+
+        if self._cutter_supports_fault_status():
+            try:
+                fault_active = await self._cutter.read_fault_active()
+            except Exception as exc:
+                refresh_failed = True
+                self._status.cutter_error = str(exc)
+                logger.warning("failed to refresh cutter fault bit: %s", exc)
+
+        if not refresh_failed:
+            self._status.cutter_error = self._cutter.error
+
+        if position_mm is not None:
+            if self._status.cutter_position_known:
+                self._status.cutter_position_mm = position_mm
+            else:
+                # Keep the raw feedback available for diagnostics even before zeroing.
+                self._status.cutter_position_mm = position_mm
+
+        if fault_active is True and self._status.fault_code != "cutter_controller_fault":
+            self._set_fault_locked("cutter_controller_fault", "DKC 控制器报告刀轴故障")
+        elif fault_active is False and self._status.fault_code == "cutter_controller_fault":
+            self._clear_fault_locked()
 
     def _combined_cut_request_active_locked(self) -> bool:
         if self._prefer_gpio_cut_request:
