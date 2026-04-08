@@ -14,7 +14,13 @@ type ManualControlModalProps = {
   cutterStopRequested: boolean;
   cutterPositionKnown: boolean;
   cutterPositionMm: number;
+  cutterJogSupported: boolean;
+  cutterJogStepInput: string;
   onExit: () => void;
+  onCutterJogStepChange: (value: string) => void;
+  onCutterJogForward: () => void;
+  onCutterJogReverse: () => void;
+  onSetCutterZero: () => void;
   onStartFeed: () => void;
   onStopFeed: () => void;
   onEngageClamp: () => void;
@@ -36,7 +42,13 @@ export function ManualControlModal(props: ManualControlModalProps) {
     cutterStopRequested,
     cutterPositionKnown,
     cutterPositionMm,
+    cutterJogSupported,
+    cutterJogStepInput,
     onExit,
+    onCutterJogStepChange,
+    onCutterJogForward,
+    onCutterJogReverse,
+    onSetCutterZero,
     onStartFeed,
     onStopFeed,
     onEngageClamp,
@@ -75,8 +87,8 @@ export function ManualControlModal(props: ManualControlModalProps) {
       />
 
       <div className="summary-card summary-card-info">
-        <span>标定入口</span>
-        <strong>刀轴行程保存与零点设置已移到主界面的刀轴标定入口，这里只保留动作调试。</strong>
+        <span>调试逻辑</span>
+        <strong>先用点按方式正反转刀轴，找到物理零点后设当前位置为零点；下压和抬起用于验证自动切割动作是否到位。</strong>
       </div>
 
       {pendingAction ? (
@@ -97,6 +109,44 @@ export function ManualControlModal(props: ManualControlModalProps) {
           },
         ]}
       />
+
+      <div className="summary-card summary-card-info">
+        <span>零点校准</span>
+        <strong>安装阶段使用点按调刀轴，确认到达物理零点后，再把当前位置写成软件零点。</strong>
+      </div>
+
+      <div className="controls controls-single">
+        <input
+          type="number"
+          min="0.001"
+          step="0.001"
+          value={cutterJogStepInput}
+          onChange={(event) => onCutterJogStepChange(event.target.value)}
+          placeholder="点按步长 mm"
+          disabled={!manualMode || !cutterJogSupported}
+        />
+        <button onClick={onCutterJogReverse} disabled={!manualMode || !cutterJogSupported || cutterMotionActive}>
+          电机反转
+        </button>
+        <button className="primary" onClick={onCutterJogForward} disabled={!manualMode || !cutterJogSupported || cutterMotionActive}>
+          电机正转
+        </button>
+        <button className="primary" onClick={onSetCutterZero} disabled={!manualMode || cutterMotionActive}>
+          设当前位置为零点
+        </button>
+      </div>
+
+      {!cutterJogSupported ? (
+        <div className="summary-card summary-card-warning">
+          <span>点按能力</span>
+          <strong>当前刀轴驱动不支持按步长临时调整，无法在手动调试中做精确找零。</strong>
+        </div>
+      ) : null}
+
+      <div className="summary-card summary-card-info">
+        <span>动作验证</span>
+        <strong>下压和抬起是自动切割时会触发的正式动作，这里只用于验证刀轴动作方向和到位情况。</strong>
+      </div>
 
       <div className="controls controls-single">
         <button className="primary" onClick={onStartFeed} disabled={!manualMode}>

@@ -750,7 +750,13 @@ export default function App() {
         cutterStopRequested={cutterStopRequested}
         cutterPositionKnown={cutterAxisState.position_known}
         cutterPositionMm={cutterAxisState.current_position_mm}
+        cutterJogSupported={Boolean(cutterAxisState.jog_supported)}
+        cutterJogStepInput={cutterJogStepInput}
         onExit={handleReturnAutoMode}
+        onCutterJogStepChange={setCutterJogStepInput}
+        onCutterJogForward={() => void runManualControl(() => jogCutterAxis("forward"), "正在点按刀轴正转")}
+        onCutterJogReverse={() => void runManualControl(() => jogCutterAxis("reverse"), "正在点按刀轴反转")}
+        onSetCutterZero={() => void runManualControl(setCutterZero, "正在将当前位置设为零点")}
         onStartFeed={() => void runManualControl(startFeed, "正在启动送料")}
         onStopFeed={() => void runManualControl(stopFeed, "正在停止送料")}
         onEngageClamp={() => void runManualControl(engageClamp, "正在压紧夹持")}
@@ -765,18 +771,11 @@ export default function App() {
         manualMode={manualMode}
         state={cutterAxisState}
         strokeInput={cutterStrokeInput}
-        jogStepInput={cutterJogStepInput}
         saving={cutterSaving}
-        zeroing={cutterZeroing}
-        jogging={cutterJogging}
         error={cutterAxisError}
         onClose={closeCutterModal}
         onStrokeInputChange={setCutterStrokeInput}
-        onJogStepInputChange={setCutterJogStepInput}
         onSaveStroke={() => void saveCutterStroke()}
-        onSetZero={() => void setCutterZero()}
-        onJogForward={() => void jogCutterAxis("forward")}
-        onJogReverse={() => void jogCutterAxis("reverse")}
       />
 
       <SystemMaintenanceModal
