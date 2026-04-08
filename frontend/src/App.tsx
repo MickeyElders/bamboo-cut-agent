@@ -156,6 +156,7 @@ export default function App() {
   const [manualConfirmOpen, setManualConfirmOpen] = useState(false);
   const [manualModeSwitching, setManualModeSwitching] = useState(false);
   const [manualModeError, setManualModeError] = useState("");
+  const [manualActionPending, setManualActionPending] = useState<string | null>(null);
   const [systemModalOpen, setSystemModalOpen] = useState(false);
   const [systemLoading, setSystemLoading] = useState(false);
   const [systemApplyingAction, setSystemApplyingAction] = useState<string | null>(null);
@@ -262,6 +263,9 @@ export default function App() {
       }
 
       setSystemStatus(message.payload);
+      if (message.payload.job_status?.mode === "manual" || message.payload.job_status?.mode === "auto") {
+        setControlMode(message.payload.job_status.mode);
+      }
       if (message.payload.cutter_axis) {
         syncCutterAxisFromSnapshot(message.payload.cutter_axis);
       }
@@ -441,6 +445,15 @@ export default function App() {
       onSuccess?.();
     } catch (error) {
       setControlError(error instanceof Error ? error.message : "控制命令执行失败");
+    }
+  }
+
+  async function runManualControl(action: () => Promise<unknown>, pendingLabel: string) {
+    setManualActionPending(pendingLabel);
+    try {
+      await runControl(action);
+    } finally {
+      setManualActionPending(null);
     }
   }
 
@@ -721,15 +734,16 @@ export default function App() {
         open={manualModalOpen}
         manualMode={manualMode}
         error={controlError}
+        pendingAction={manualActionPending}
         cutterPositionKnown={cutterAxisState.position_known}
         cutterPositionMm={cutterAxisState.current_position_mm}
         onExit={handleReturnAutoMode}
-        onStartFeed={() => void runControl(startFeed)}
-        onStopFeed={() => void runControl(stopFeed)}
-        onEngageClamp={() => void runControl(engageClamp)}
-        onReleaseClamp={() => void runControl(releaseClamp)}
-        onStartCutter={() => void runControl(startCutter)}
-        onStopCutter={() => void runControl(stopCutter)}
+        onStartFeed={() => void runManualControl(startFeed, "正在启动送料")}
+        onStopFeed={() => void runManualControl(stopFeed, "正在停止送料")}
+        onEngageClamp={() => void runManualControl(engageClamp, "正在压紧夹持")}
+        onReleaseClamp={() => void runManualControl(releaseClamp, "正在释放夹持")}
+        onStartCutter={() => void runManualControl(startCutter, "正在执行切刀下压")}
+        onStopCutter={() => void runManualControl(stopCutter, "正在执行切刀抬起")}
       />
 
       <CutterCalibrationModal

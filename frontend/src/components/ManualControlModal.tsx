@@ -7,6 +7,7 @@ type ManualControlModalProps = {
   open: boolean;
   manualMode: boolean;
   error: string;
+  pendingAction: string | null;
   cutterPositionKnown: boolean;
   cutterPositionMm: number;
   onExit: () => void;
@@ -23,6 +24,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
     open,
     manualMode,
     error,
+    pendingAction,
     cutterPositionKnown,
     cutterPositionMm,
     onExit,
@@ -33,6 +35,8 @@ export function ManualControlModal(props: ManualControlModalProps) {
     onStartCutter,
     onStopCutter
   } = props;
+
+  const controlsDisabled = !manualMode || pendingAction !== null;
 
   if (!open) return null;
 
@@ -66,23 +70,30 @@ export function ManualControlModal(props: ManualControlModalProps) {
         <strong>刀轴行程保存与零点设置已移到主界面的刀轴标定入口，这里只保留动作调试。</strong>
       </div>
 
+      {pendingAction ? (
+        <div className="summary-card summary-card-info">
+          <span>执行中</span>
+          <strong>{pendingAction}</strong>
+        </div>
+      ) : null}
+
       <div className="controls controls-single">
-        <button className="primary" onClick={onStartFeed} disabled={!manualMode}>
+        <button className="primary" onClick={onStartFeed} disabled={controlsDisabled}>
           启动送料
         </button>
-        <button onClick={onStopFeed} disabled={!manualMode}>
+        <button onClick={onStopFeed} disabled={controlsDisabled}>
           停止送料
         </button>
-        <button className="primary" onClick={onEngageClamp} disabled={!manualMode}>
+        <button className="primary" onClick={onEngageClamp} disabled={controlsDisabled}>
           压紧夹持
         </button>
-        <button onClick={onReleaseClamp} disabled={!manualMode}>
+        <button onClick={onReleaseClamp} disabled={controlsDisabled}>
           释放夹持
         </button>
-        <button className="primary" onClick={onStartCutter} disabled={!manualMode}>
+        <button className="primary" onClick={onStartCutter} disabled={controlsDisabled}>
           切刀下压
         </button>
-        <button onClick={onStopCutter} disabled={!manualMode}>
+        <button onClick={onStopCutter} disabled={controlsDisabled}>
           切刀抬起
         </button>
       </div>

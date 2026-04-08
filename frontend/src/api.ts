@@ -1,13 +1,47 @@
 ﻿import type { CommandAck, CutConfig, EventItem, SystemActionAck, SystemMaintenanceSnapshot, VideoConfig } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+function resolveApiBase() {
+  const configured = import.meta.env.VITE_API_BASE?.trim();
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  if (typeof window === "undefined") {
+    return "http://localhost:8000";
+  }
+
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  const hostname = window.location.hostname || "localhost";
+  const port = import.meta.env.VITE_API_PORT?.trim() || "8000";
+  return `${protocol}//${hostname}:${port}`;
+}
+
+const API_BASE = resolveApiBase();
+
+function buildWsUrl(path: string) {
+  try {
+    const url = new URL(API_BASE);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = path;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
 
 async function postCommand(path: string, body?: Record<string, unknown>) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {}),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+  } catch {
+    throw new Error(`无法连接设备控制服务: ${API_BASE}`);
+  }
 
   if (!res.ok) {
     let detail = "";
@@ -161,21 +195,9 @@ export async function executeSystemAction(action: string) {
 }
 
 export function uiWsUrl() {
-  const fallback = "ws://localhost:8000/ws/ui";
-  try {
-    const api = API_BASE.replace(/^http/, "ws");
-    return `${api}/ws/ui`;
-  } catch {
-    return fallback;
-  }
+  return buildWsUrl("/ws/ui") || "ws://localhost:8000/ws/ui";
 }
 
 export function videoWsUrl() {
-  const fallback = "ws://localhost:8000/ws/video";
-  try {
-    const api = API_BASE.replace(/^http/, "ws");
-    return `${api}/ws/video`;
-  } catch {
-    return fallback;
-  }
+  return buildWsUrl("/ws/video") || "ws://localhost:8000/ws/video";
 }
