@@ -46,8 +46,9 @@ export function useCutterAxis() {
   const saveStroke = useCallback(async () => {
     const stroke = Number(strokeInput);
     if (!(stroke > 0)) {
-      setError("请先填写有效的刀轴行程");
-      return;
+      const nextError = "请先填写有效的刀轴行程";
+      setError(nextError);
+      throw new Error(nextError);
     }
 
     setSaving(true);
@@ -57,7 +58,9 @@ export function useCutterAxis() {
       setState(next);
       setStrokeInput(next.stroke_mm != null ? String(next.stroke_mm) : "");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存刀轴行程失败");
+      const nextError = saveError instanceof Error ? saveError.message : "保存刀轴行程失败";
+      setError(nextError);
+      throw saveError instanceof Error ? saveError : new Error(nextError);
     } finally {
       setSaving(false);
     }
@@ -70,7 +73,9 @@ export function useCutterAxis() {
       const next = await setCutterAxisZero();
       setState(next);
     } catch (zeroError) {
-      setError(zeroError instanceof Error ? zeroError.message : "设置刀轴零点失败");
+      const nextError = zeroError instanceof Error ? zeroError.message : "设置刀轴零点失败";
+      setError(nextError);
+      throw zeroError instanceof Error ? zeroError : new Error(nextError);
     } finally {
       setZeroing(false);
     }
@@ -80,8 +85,9 @@ export function useCutterAxis() {
     async (direction: "forward" | "reverse") => {
       const distance = Number(jogStepInput);
       if (!(distance > 0)) {
-        setError("请先填写有效的临时调整步长");
-        return;
+        const nextError = "请先填写有效的临时调整步长";
+        setError(nextError);
+        throw new Error(nextError);
       }
 
       setJogging(true);
@@ -90,7 +96,9 @@ export function useCutterAxis() {
         const next = await jogCutterAxis(direction, distance);
         setState(next);
       } catch (jogError) {
-        setError(jogError instanceof Error ? jogError.message : "执行刀轴临时调整失败");
+        const nextError = jogError instanceof Error ? jogError.message : "执行刀轴临时调整失败";
+        setError(nextError);
+        throw jogError instanceof Error ? jogError : new Error(nextError);
       } finally {
         setJogging(false);
       }

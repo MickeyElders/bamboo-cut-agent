@@ -74,6 +74,12 @@ const DEFAULT_LIGHT = {
 };
 
 type UiMessage = { type: "ai_frame"; payload: AiFrame } | { type: "system_status"; payload: SystemStatus };
+type ManualTrace = {
+  phase: "dispatch" | "success" | "error";
+  label: string;
+  at: number;
+  detail?: string;
+};
 
 function drawVisionOverlay(
   canvas: HTMLCanvasElement,
@@ -158,6 +164,7 @@ export default function App() {
   const [manualModeSwitching, setManualModeSwitching] = useState(false);
   const [manualModeError, setManualModeError] = useState("");
   const [manualActionPending, setManualActionPending] = useState<string | null>(null);
+  const [manualTrace, setManualTrace] = useState<ManualTrace | null>(null);
   const [systemModalOpen, setSystemModalOpen] = useState(false);
   const [systemLoading, setSystemLoading] = useState(false);
   const [systemApplyingAction, setSystemApplyingAction] = useState<string | null>(null);
@@ -200,6 +207,12 @@ export default function App() {
   const cutterMotionDirection = systemStatus.job_status?.cutter_motion_direction ?? null;
   const cutterStopSupported = Boolean(systemStatus.job_status?.cutter_stop_supported);
   const cutterStopRequested = Boolean(systemStatus.job_status?.cutter_stop_requested);
+  const manualModalError = controlError || cutterAxisError;
+  const manualTraceText = manualTrace
+    ? `${manualTrace.phase === "dispatch" ? "已发起" : manualTrace.phase === "success" ? "已完成" : "已失败"} ${manualTrace.label} · ${new Date(
+        manualTrace.at,
+      ).toLocaleTimeString("zh-CN", { hour12: false })}${manualTrace.detail ? ` · ${manualTrace.detail}` : ""}`
+    : "";
 
   useEffect(() => {
     cutDirtyRef.current = cutDirty;
@@ -464,9 +477,16 @@ export default function App() {
   }
 
   async function runManualControl(action: () => Promise<unknown>, pendingLabel: string) {
+    setControlError("");
     setManualActionPending(pendingLabel);
+    setManualTrace({ phase: "dispatch", label: pendingLabel, at: Date.now() });
     try {
-      await runControl(action);
+      await action();
+      setManualTrace({ phase: "success", label: pendingLabel, at: Date.now() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "控制命令执行失败";
+      setControlError(message);
+      setManualTrace({ phase: "error", label: pendingLabel, at: Date.now(), detail: message });
     } finally {
       setManualActionPending(null);
     }
@@ -750,8 +770,9 @@ export default function App() {
       <ManualControlModal
         open={manualModalOpen}
         manualMode={manualMode}
-        error={controlError}
+        error={manualModalError}
         pendingAction={manualActionPending}
+        requestTrace={manualTraceText}
         cutterMotionActive={cutterMotionActive}
         cutterMotionDirection={cutterMotionDirection}
         cutterStopSupported={cutterStopSupported}

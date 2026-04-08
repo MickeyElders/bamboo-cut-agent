@@ -8,6 +8,7 @@ type ManualControlModalProps = {
   manualMode: boolean;
   error: string;
   pendingAction: string | null;
+  requestTrace?: string;
   cutterMotionActive: boolean;
   cutterMotionDirection: string | null;
   cutterStopSupported: boolean;
@@ -36,6 +37,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
     manualMode,
     error,
     pendingAction,
+    requestTrace,
     cutterMotionActive,
     cutterMotionDirection,
     cutterStopSupported,
@@ -103,6 +105,13 @@ export function ManualControlModal(props: ManualControlModalProps) {
         </div>
       ) : null}
 
+      {requestTrace ? (
+        <div className="summary-card summary-card-info">
+          <span>调用链路</span>
+          <strong>{requestTrace}</strong>
+        </div>
+      ) : null}
+
       <SummaryTileGrid
         tone="info"
         items={[
@@ -130,13 +139,13 @@ export function ManualControlModal(props: ManualControlModalProps) {
           placeholder="点按步长 mm"
           disabled={!manualMode || Boolean(pendingAction)}
         />
-        <button onClick={onCutterJogReverse} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
+        <button type="button" onClick={onCutterJogReverse} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           电机反转
         </button>
-        <button className="primary" onClick={onCutterJogForward} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
+        <button type="button" className="primary" onClick={onCutterJogForward} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           电机正转
         </button>
-        <button className="primary" onClick={onSetCutterZero} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
+        <button type="button" className="primary" onClick={onSetCutterZero} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           设当前位置为零点
         </button>
       </div>
@@ -154,25 +163,25 @@ export function ManualControlModal(props: ManualControlModalProps) {
       </div>
 
       <div className="controls controls-single">
-        <button className="primary" onClick={onStartFeed} disabled={!manualMode || Boolean(pendingAction)}>
+        <button type="button" className="primary" onClick={onStartFeed} disabled={!manualMode || Boolean(pendingAction)}>
           启动送料
         </button>
-        <button onClick={onStopFeed} disabled={!manualMode || Boolean(pendingAction)}>
+        <button type="button" onClick={onStopFeed} disabled={!manualMode || Boolean(pendingAction)}>
           停止送料
         </button>
-        <button className="primary" onClick={onEngageClamp} disabled={!manualMode || Boolean(pendingAction)}>
+        <button type="button" className="primary" onClick={onEngageClamp} disabled={!manualMode || Boolean(pendingAction)}>
           压紧夹持
         </button>
-        <button onClick={onReleaseClamp} disabled={!manualMode || Boolean(pendingAction)}>
+        <button type="button" onClick={onReleaseClamp} disabled={!manualMode || Boolean(pendingAction)}>
           释放夹持
         </button>
-        <button className="primary" onClick={onStartCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
+        <button type="button" className="primary" onClick={onStartCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           切刀下压
         </button>
-        <button onClick={onStopCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
+        <button type="button" onClick={onStopCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           切刀抬起
         </button>
-        <button className="warning" onClick={onAbortCutter} disabled={!manualMode || !cutterMotionActive || !cutterStopSupported || Boolean(pendingAction)}>
+        <button type="button" className="warning" onClick={onAbortCutter} disabled={!manualMode || !cutterMotionActive || !cutterStopSupported || Boolean(pendingAction)}>
           停止刀轴
         </button>
       </div>
@@ -185,7 +194,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
       ) : null}
 
       <div className="modal-actions modal-actions-single">
-        <button className="mode-button" onClick={onExit}>
+        <button type="button" className="mode-button" onClick={onExit}>
           退出手动调试
         </button>
       </div>

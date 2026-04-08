@@ -1323,6 +1323,11 @@ button:active:not(:disabled) {
     0 4px 10px rgba(13, 21, 30, 0.06);
 }
 
+button {
+  touch-action: manipulation;
+  user-select: none;
+}
+
 button.primary {
   background:
     linear-gradient(180deg, rgba(164, 194, 255, 0.18), transparent),
