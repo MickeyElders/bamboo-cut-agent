@@ -1,5 +1,6 @@
-import { formatMillimeters } from "../utils/ui";
+import { formatCutterZeroState, formatMillimeters } from "../utils/ui";
 import { ModalShell } from "./ModalShell";
+import { SummaryTileGrid } from "./SummaryTileGrid";
 
 type ManualControlModalProps = {
   open: boolean;
@@ -7,17 +8,7 @@ type ManualControlModalProps = {
   error: string;
   cutterPositionKnown: boolean;
   cutterPositionMm: number;
-  cutterStrokeUpMm?: number | null;
-  cutterStrokeDownMm?: number | null;
-  cutterStrokeUpInput: string;
-  cutterStrokeDownInput: string;
-  zeroing: boolean;
-  saving: boolean;
   onExit: () => void;
-  onSetZero: () => void;
-  onStrokeUpInputChange: (value: string) => void;
-  onStrokeDownInputChange: (value: string) => void;
-  onSaveStroke: () => void;
   onStartFeed: () => void;
   onStopFeed: () => void;
   onEngageClamp: () => void;
@@ -33,17 +24,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
     error,
     cutterPositionKnown,
     cutterPositionMm,
-    cutterStrokeUpMm,
-    cutterStrokeDownMm,
-    cutterStrokeUpInput,
-    cutterStrokeDownInput,
-    zeroing,
-    saving,
     onExit,
-    onSetZero,
-    onStrokeUpInputChange,
-    onStrokeDownInputChange,
-    onSaveStroke,
     onStartFeed,
     onStopFeed,
     onEngageClamp,
@@ -53,7 +34,6 @@ export function ManualControlModal(props: ManualControlModalProps) {
   } = props;
 
   if (!open) return null;
-  const strokeConfigured = cutterStrokeUpMm != null && cutterStrokeDownMm != null;
 
   return (
     <ModalShell
@@ -72,54 +52,17 @@ export function ManualControlModal(props: ManualControlModalProps) {
         </strong>
       </div>
 
-      <div className="summary-grid tone-info">
-        <div className="summary-tile">
-          <span>当前位置</span>
-          <strong>{cutterPositionKnown ? formatMillimeters(cutterPositionMm) : "未校准"}</strong>
-        </div>
-        <div className="summary-tile">
-          <span>程序步长</span>
-          <strong>
-            {strokeConfigured
-              ? `上升 ${formatMillimeters(cutterStrokeUpMm)} | 下降 ${formatMillimeters(cutterStrokeDownMm)}`
-              : "未配置，当前无法准确累计当前位置"}
-          </strong>
-        </div>
-      </div>
+      <SummaryTileGrid
+        tone="info"
+        items={[
+          { label: "当前位置", value: cutterPositionKnown ? formatMillimeters(cutterPositionMm) : "未校准" },
+          { label: "零点状态", value: formatCutterZeroState(cutterPositionKnown), tone: cutterPositionKnown ? "success" : "warning" },
+        ]}
+      />
 
-      {!strokeConfigured ? (
-        <div className="summary-card summary-card-warning">
-          <span>步长设置</span>
-          <strong>请先设置 DKC 的上升/下降程序实际位移，保存后系统才会持久化并正确记录当前位置。</strong>
-        </div>
-      ) : null}
-
-      <div className="controls controls-single">
-        <input
-          type="number"
-          min="0.001"
-          step="0.001"
-          value={cutterStrokeUpInput}
-          onChange={(event) => onStrokeUpInputChange(event.target.value)}
-          placeholder="上升步长 mm"
-        />
-        <input
-          type="number"
-          min="0.001"
-          step="0.001"
-          value={cutterStrokeDownInput}
-          onChange={(event) => onStrokeDownInputChange(event.target.value)}
-          placeholder="下降步长 mm"
-        />
-        <button className="primary" onClick={onSaveStroke} disabled={!manualMode || saving}>
-          {saving ? "正在保存..." : "保存步长"}
-        </button>
-      </div>
-
-      <div className="controls controls-single">
-        <button className="primary" onClick={onSetZero} disabled={!manualMode || zeroing}>
-          {zeroing ? "正在设零..." : "设当前位置为零点"}
-        </button>
+      <div className="summary-card summary-card-info">
+        <span>标定入口</span>
+        <strong>步长保存与零点设置已移到主界面的刀轴标定入口，这里只保留动作调试。</strong>
       </div>
 
       <div className="controls controls-single">

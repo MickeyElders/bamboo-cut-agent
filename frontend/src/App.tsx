@@ -24,6 +24,8 @@ import {
   videoWsUrl,
 } from "./api";
 import { ConfirmActionModal } from "./components/ConfirmActionModal";
+import { CutterAxisPanel } from "./components/CutterAxisPanel";
+import { CutterCalibrationModal } from "./components/CutterCalibrationModal";
 import { CutSettingsModal } from "./components/CutSettingsModal";
 import { DeviceControlPanel } from "./components/DeviceControlPanel";
 import { EventHistoryModal } from "./components/EventHistoryModal";
@@ -166,6 +168,8 @@ export default function App() {
   const [manualModeSwitching, setManualModeSwitching] = useState(false);
   const [manualModeError, setManualModeError] = useState("");
   const [cutterAxis, setCutterAxis] = useState<CutterAxisState>(DEFAULT_CUTTER_AXIS);
+  const [cutterModalOpen, setCutterModalOpen] = useState(false);
+  const [cutterAxisError, setCutterAxisError] = useState("");
   const [cutterStrokeUpInput, setCutterStrokeUpInput] = useState("");
   const [cutterStrokeDownInput, setCutterStrokeDownInput] = useState("");
   const [cutterZeroing, setCutterZeroing] = useState(false);
@@ -230,11 +234,12 @@ export default function App() {
     fetchCutterAxis()
       .then((state) => {
         setCutterAxis(state);
+        setCutterAxisError("");
         setCutterStrokeUpInput(state.stroke_up_mm != null ? String(state.stroke_up_mm) : "");
         setCutterStrokeDownInput(state.stroke_down_mm != null ? String(state.stroke_down_mm) : "");
       })
       .catch(() => {
-        setControlError("获取刀轴位置失败");
+        setCutterAxisError("获取刀轴位置失败");
       });
 
     void loadSystemMaintenance();
@@ -274,6 +279,7 @@ export default function App() {
       setSystemStatus(message.payload);
       if (message.payload.cutter_axis) {
         setCutterAxis(message.payload.cutter_axis);
+        setCutterAxisError("");
         setCutterStrokeUpInput((current) => current || (message.payload.cutter_axis?.stroke_up_mm != null ? String(message.payload.cutter_axis.stroke_up_mm) : ""));
         setCutterStrokeDownInput((current) => current || (message.payload.cutter_axis?.stroke_down_mm != null ? String(message.payload.cutter_axis.stroke_down_mm) : ""));
       }
@@ -561,12 +567,13 @@ export default function App() {
 
   async function handleSetCutterZero() {
     setCutterZeroing(true);
-    setControlError("");
+    setCutterAxisError("");
     try {
       const state = await setCutterAxisZero();
       setCutterAxis(state);
+      setCutterAxisError("");
     } catch (error) {
-      setControlError(error instanceof Error ? error.message : "设置刀轴零点失败");
+      setCutterAxisError(error instanceof Error ? error.message : "设置刀轴零点失败");
     } finally {
       setCutterZeroing(false);
     }
@@ -576,22 +583,23 @@ export default function App() {
     const up = Number(cutterStrokeUpInput);
     const down = Number(cutterStrokeDownInput);
     if (!(up > 0) || !(down > 0)) {
-      setControlError("请先填写有效的上升和下降步长");
+      setCutterAxisError("请先填写有效的上升和下降步长");
       return;
     }
 
     setCutterSaving(true);
-    setControlError("");
+    setCutterAxisError("");
     try {
       const state = await saveCutterAxis({
         stroke_up_mm: up,
         stroke_down_mm: down,
       });
       setCutterAxis(state);
+      setCutterAxisError("");
       setCutterStrokeUpInput(state.stroke_up_mm != null ? String(state.stroke_up_mm) : "");
       setCutterStrokeDownInput(state.stroke_down_mm != null ? String(state.stroke_down_mm) : "");
     } catch (error) {
-      setControlError(error instanceof Error ? error.message : "保存刀轴步长失败");
+      setCutterAxisError(error instanceof Error ? error.message : "保存刀轴步长失败");
     } finally {
       setCutterSaving(false);
     }
@@ -686,6 +694,7 @@ export default function App() {
           lightCount={lightCount}
           videoError={videoError}
           onOpenCutSettings={() => setCutModalOpen(true)}
+          onOpenCutterCalibration={() => setCutterModalOpen(true)}
           onOpenLightSettings={() => setLightModalOpen(true)}
           onOpenSystemMaintenance={handleOpenSystemMaintenance}
           onOpenManual={handleRequestManualMode}
@@ -694,6 +703,8 @@ export default function App() {
 
         <aside className="sidebar">
           <SystemStatusStrip status={systemStatus} maintenance={systemMaintenance} videoConnected={videoConnected} />
+
+          <CutterAxisPanel state={cutterAxis} error={cutterAxisError} />
 
           <section className="panel side-panel">
             <div className="header">
@@ -770,23 +781,29 @@ export default function App() {
         error={controlError}
         cutterPositionKnown={cutterAxis.position_known}
         cutterPositionMm={cutterAxis.current_position_mm}
-        cutterStrokeUpMm={cutterAxis.stroke_up_mm}
-        cutterStrokeDownMm={cutterAxis.stroke_down_mm}
-        cutterStrokeUpInput={cutterStrokeUpInput}
-        cutterStrokeDownInput={cutterStrokeDownInput}
-        zeroing={cutterZeroing}
-        saving={cutterSaving}
         onExit={handleReturnAutoMode}
-        onSetZero={() => void handleSetCutterZero()}
-        onStrokeUpInputChange={setCutterStrokeUpInput}
-        onStrokeDownInputChange={setCutterStrokeDownInput}
-        onSaveStroke={() => void handleSaveCutterStroke()}
         onStartFeed={() => void runControl(startFeed)}
         onStopFeed={() => void runControl(stopFeed)}
         onEngageClamp={() => void runControl(engageClamp)}
         onReleaseClamp={() => void runControl(releaseClamp)}
         onStartCutter={() => void runControl(startCutter)}
         onStopCutter={() => void runControl(stopCutter)}
+      />
+
+      <CutterCalibrationModal
+        open={cutterModalOpen}
+        manualMode={manualMode}
+        state={cutterAxis}
+        strokeUpInput={cutterStrokeUpInput}
+        strokeDownInput={cutterStrokeDownInput}
+        saving={cutterSaving}
+        zeroing={cutterZeroing}
+        error={cutterAxisError}
+        onClose={() => setCutterModalOpen(false)}
+        onStrokeUpInputChange={setCutterStrokeUpInput}
+        onStrokeDownInputChange={setCutterStrokeDownInput}
+        onSaveStroke={() => void handleSaveCutterStroke()}
+        onSetZero={() => void handleSetCutterZero()}
       />
 
       <SystemMaintenanceModal

@@ -1,4 +1,4 @@
-﻿import type { AiFrame, CutConfig } from "../types";
+﻿import type { AiFrame, CutConfig, CutterAxisState } from "../types";
 
 export type RunState = {
   code: string;
@@ -41,6 +41,34 @@ export function formatRatio(value: number) {
 export function formatMillimeters(value?: number | null) {
   if (value == null || Number.isNaN(value)) return "-";
   return `${value.toFixed(2)} mm`;
+}
+
+export function formatCutterZeroState(positionKnown: boolean) {
+  return positionKnown ? "已设零" : "未设零";
+}
+
+export function formatCutterStroke(state: CutterAxisState) {
+  if (state.stroke_up_mm != null && state.stroke_down_mm != null) {
+    return `上 ${formatMillimeters(state.stroke_up_mm)} / 下 ${formatMillimeters(state.stroke_down_mm)}`;
+  }
+  if (state.stroke_up_mm != null) {
+    return `上 ${formatMillimeters(state.stroke_up_mm)} / 下 -`;
+  }
+  if (state.stroke_down_mm != null) {
+    return `上 - / 下 ${formatMillimeters(state.stroke_down_mm)}`;
+  }
+  return "未配置";
+}
+
+export function formatCutterDriverState(state: CutterAxisState, fallbackError = "") {
+  if (fallbackError || state.error) return "异常";
+  if (state.available === false) return "离线";
+  if (state.available === true) return state.driver ? `在线 · ${state.driver}` : "在线";
+  return "同步中";
+}
+
+export function getCutterAxisSummary(state: CutterAxisState, fallbackError = "") {
+  return `${formatCutterZeroState(state.position_known)} | ${formatCutterStroke(state)} | ${formatCutterDriverState(state, fallbackError)}`;
 }
 
 export function formatDisk(used?: number | null, total?: number | null, percent?: number | null) {

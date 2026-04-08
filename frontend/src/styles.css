@@ -449,6 +449,10 @@ video {
   gap: 10px;
 }
 
+.vision-control-group-grid-triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .vision-control-group-danger .vision-control-group-grid {
   grid-template-columns: 1fr;
 }
@@ -479,6 +483,10 @@ video {
 
 .maintenance-entry-button::after {
   background: linear-gradient(90deg, rgba(111, 122, 134, 0.2), rgba(111, 122, 134, 0.42));
+}
+
+.calibration-entry-button::after {
+  background: linear-gradient(90deg, rgba(52, 120, 226, 0.22), rgba(84, 124, 182, 0.44));
 }
 
 .manual-entry-button {

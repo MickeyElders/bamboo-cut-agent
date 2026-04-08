@@ -12,6 +12,7 @@ type VisionPanelProps = {
   lightCount: number;
   videoError: string;
   onOpenCutSettings: () => void;
+  onOpenCutterCalibration: () => void;
   onOpenLightSettings: () => void;
   onOpenSystemMaintenance: () => void;
   onOpenManual: () => void;
@@ -29,6 +30,7 @@ export function VisionPanel(props: VisionPanelProps) {
     lightCount,
     videoError,
     onOpenCutSettings,
+    onOpenCutterCalibration,
     onOpenLightSettings,
     onOpenSystemMaintenance,
     onOpenManual,
@@ -80,9 +82,12 @@ export function VisionPanel(props: VisionPanelProps) {
         <div className="vision-control-strip">
           <div className="vision-control-group">
             <span className="vision-control-group-label">设置</span>
-            <div className="vision-control-group-grid">
+            <div className="vision-control-group-grid vision-control-group-grid-triple">
               <button className="surface-button module-entry-button" onClick={onOpenCutSettings}>
                 切割信息
+              </button>
+              <button className="surface-button module-entry-button calibration-entry-button" onClick={onOpenCutterCalibration}>
+                刀轴标定
               </button>
               <button className="surface-button module-entry-button" onClick={onOpenLightSettings}>
                 灯光设置

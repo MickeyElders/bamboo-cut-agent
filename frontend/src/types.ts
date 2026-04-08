@@ -28,6 +28,9 @@ export type CutterAxisState = {
   current_position_mm: number;
   stroke_up_mm?: number | null;
   stroke_down_mm?: number | null;
+  available?: boolean;
+  driver?: string | null;
+  error?: string | null;
   updated_at?: number | null;
 };
 
