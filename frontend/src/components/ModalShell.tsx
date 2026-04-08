@@ -6,18 +6,29 @@ type ModalShellProps = {
   badgeTone?: "ok" | "warn";
   onClose: () => void;
   closeOnBackdrop?: boolean;
+  panelClassName?: string;
+  bodyClassName?: string;
   children: ReactNode;
 };
 
-export function ModalShell({ title, badge, badgeTone = "ok", onClose, closeOnBackdrop = true, children }: ModalShellProps) {
+export function ModalShell({
+  title,
+  badge,
+  badgeTone = "ok",
+  onClose,
+  closeOnBackdrop = true,
+  panelClassName,
+  bodyClassName,
+  children,
+}: ModalShellProps) {
   return (
     <div className="modal-backdrop" onClick={closeOnBackdrop ? onClose : undefined}>
-      <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+      <div className={panelClassName ? `modal-panel ${panelClassName}` : "modal-panel"} onClick={(event) => event.stopPropagation()}>
         <div className="header">
           <h2>{title}</h2>
           {badge ? <span className={`badge ${badgeTone}`}>{badge}</span> : null}
         </div>
-        {children}
+        <div className={bodyClassName ? `modal-body ${bodyClassName}` : "modal-body"}>{children}</div>
       </div>
     </div>
   );

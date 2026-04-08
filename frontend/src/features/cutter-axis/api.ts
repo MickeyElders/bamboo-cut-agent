@@ -28,18 +28,28 @@ async function readDetail(res: Response) {
 }
 
 export async function fetchCutterAxis() {
-  const res = await fetch(`${API_BASE}/api/cutter-axis`);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/cutter-axis`);
+  } catch {
+    throw new Error(`无法连接设备控制服务: ${API_BASE}`);
+  }
   if (!res.ok) {
-    throw new Error("获取刀轴位置失败");
+    throw new Error((await readDetail(res)) || "获取刀轴位置失败");
   }
   return (await res.json()) as CutterAxisState;
 }
 
 export async function setCutterAxisZero() {
-  const res = await fetch(`${API_BASE}/api/cutter-axis/zero`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/cutter-axis/zero`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    throw new Error(`无法连接设备控制服务: ${API_BASE}`);
+  }
   if (!res.ok) {
     throw new Error((await readDetail(res)) || "设置刀轴零点失败");
   }
@@ -47,11 +57,16 @@ export async function setCutterAxisZero() {
 }
 
 export async function saveCutterAxis(config: Partial<CutterAxisState>) {
-  const res = await fetch(`${API_BASE}/api/cutter-axis`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/cutter-axis`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+  } catch {
+    throw new Error(`无法连接设备控制服务: ${API_BASE}`);
+  }
   if (!res.ok) {
     throw new Error((await readDetail(res)) || "保存刀轴行程失败");
   }
@@ -59,11 +74,16 @@ export async function saveCutterAxis(config: Partial<CutterAxisState>) {
 }
 
 export async function jogCutterAxis(direction: "forward" | "reverse", distanceMm: number) {
-  const res = await fetch(`${API_BASE}/api/cutter-axis/jog`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ direction, distance_mm: distanceMm }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/cutter-axis/jog`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction, distance_mm: distanceMm }),
+    });
+  } catch {
+    throw new Error(`无法连接设备控制服务: ${API_BASE}`);
+  }
   if (!res.ok) {
     throw new Error((await readDetail(res)) || "执行刀轴临时调整失败");
   }

@@ -188,6 +188,7 @@ export default function App() {
     setZero: setCutterZero,
     jog: jogCutterAxis,
     syncFromSnapshot: syncCutterAxisFromSnapshot,
+    reload: reloadCutterAxis,
   } = useCutterAxis();
 
   const manualMode = controlMode === "manual";
@@ -357,6 +358,11 @@ export default function App() {
       void startVideo();
     }
   }, [videoConfig.enabled, videoConnected]);
+
+  useEffect(() => {
+    if (!manualModalOpen) return;
+    void reloadCutterAxis();
+  }, [manualModalOpen, reloadCutterAxis]);
 
   async function startVideo() {
     if (signalRef.current || !videoConfig.enabled) return;
@@ -538,6 +544,7 @@ export default function App() {
   function handleRequestManualMode() {
     if (manualMode) {
       setManualModalOpen(true);
+      void reloadCutterAxis();
       return;
     }
     setManualModeError("");
@@ -550,6 +557,7 @@ export default function App() {
     try {
       await setManualMode();
       setControlMode("manual");
+      await reloadCutterAxis();
       setManualModalOpen(true);
       setManualConfirmOpen(false);
     } catch (error) {

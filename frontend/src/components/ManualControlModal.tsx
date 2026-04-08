@@ -68,6 +68,8 @@ export function ManualControlModal(props: ManualControlModalProps) {
       badgeTone={manualMode ? "warn" : "ok"}
       onClose={onExit}
       closeOnBackdrop={false}
+      panelClassName="manual-control-panel"
+      bodyClassName="manual-control-body"
     >
       <div className="summary-card summary-card-warning">
         <span>说明</span>
@@ -81,6 +83,9 @@ export function ManualControlModal(props: ManualControlModalProps) {
       <SummaryTileGrid
         tone="info"
         items={[
+          { label: "当前模式", value: manualMode ? "已进入手动" : "仍在自动", tone: manualMode ? "success" : "warning" },
+          { label: "点按能力", value: cutterJogSupported ? "后端已确认" : "后端未确认", tone: cutterJogSupported ? "success" : "warning" },
+          { label: "动作锁定", value: cutterMotionActive ? cutterDirectionText : "未锁定", tone: cutterMotionActive ? "warning" : "success" },
           { label: "当前位置", value: cutterPositionKnown ? formatMillimeters(cutterPositionMm) : "未校准" },
           { label: "零点状态", value: formatCutterZeroState(cutterPositionKnown), tone: cutterPositionKnown ? "success" : "warning" },
         ]}
@@ -123,15 +128,15 @@ export function ManualControlModal(props: ManualControlModalProps) {
           value={cutterJogStepInput}
           onChange={(event) => onCutterJogStepChange(event.target.value)}
           placeholder="点按步长 mm"
-          disabled={!manualMode || !cutterJogSupported}
+          disabled={!manualMode || Boolean(pendingAction)}
         />
-        <button onClick={onCutterJogReverse} disabled={!manualMode || !cutterJogSupported || cutterMotionActive}>
+        <button onClick={onCutterJogReverse} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           电机反转
         </button>
-        <button className="primary" onClick={onCutterJogForward} disabled={!manualMode || !cutterJogSupported || cutterMotionActive}>
+        <button className="primary" onClick={onCutterJogForward} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           电机正转
         </button>
-        <button className="primary" onClick={onSetCutterZero} disabled={!manualMode || cutterMotionActive}>
+        <button className="primary" onClick={onSetCutterZero} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           设当前位置为零点
         </button>
       </div>
@@ -139,7 +144,7 @@ export function ManualControlModal(props: ManualControlModalProps) {
       {!cutterJogSupported ? (
         <div className="summary-card summary-card-warning">
           <span>点按能力</span>
-          <strong>当前刀轴驱动不支持按步长临时调整，无法在手动调试中做精确找零。</strong>
+          <strong>后端当前还没有确认点按能力。按钮仍会尝试发起请求，请结合后端日志检查串口、驱动类型和刀轴状态回传。</strong>
         </div>
       ) : null}
 
@@ -149,25 +154,25 @@ export function ManualControlModal(props: ManualControlModalProps) {
       </div>
 
       <div className="controls controls-single">
-        <button className="primary" onClick={onStartFeed} disabled={!manualMode}>
+        <button className="primary" onClick={onStartFeed} disabled={!manualMode || Boolean(pendingAction)}>
           启动送料
         </button>
-        <button onClick={onStopFeed} disabled={!manualMode}>
+        <button onClick={onStopFeed} disabled={!manualMode || Boolean(pendingAction)}>
           停止送料
         </button>
-        <button className="primary" onClick={onEngageClamp} disabled={!manualMode}>
+        <button className="primary" onClick={onEngageClamp} disabled={!manualMode || Boolean(pendingAction)}>
           压紧夹持
         </button>
-        <button onClick={onReleaseClamp} disabled={!manualMode}>
+        <button onClick={onReleaseClamp} disabled={!manualMode || Boolean(pendingAction)}>
           释放夹持
         </button>
-        <button className="primary" onClick={onStartCutter} disabled={!manualMode || cutterMotionActive}>
+        <button className="primary" onClick={onStartCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           切刀下压
         </button>
-        <button onClick={onStopCutter} disabled={!manualMode || cutterMotionActive}>
+        <button onClick={onStopCutter} disabled={!manualMode || cutterMotionActive || Boolean(pendingAction)}>
           切刀抬起
         </button>
-        <button className="warning" onClick={onAbortCutter} disabled={!manualMode || !cutterMotionActive || !cutterStopSupported}>
+        <button className="warning" onClick={onAbortCutter} disabled={!manualMode || !cutterMotionActive || !cutterStopSupported || Boolean(pendingAction)}>
           停止刀轴
         </button>
       </div>

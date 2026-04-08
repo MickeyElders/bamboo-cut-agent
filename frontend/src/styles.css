@@ -1438,7 +1438,9 @@ button:disabled {
   width: min(560px, calc(100vw - 32px));
   display: grid;
   gap: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
   padding: 20px;
+  max-height: min(88vh, 840px);
   background:
     linear-gradient(180deg, rgba(253, 254, 255, 0.96), rgba(234, 239, 244, 0.9)),
     rgba(255, 255, 255, 0.84);
@@ -1447,6 +1449,34 @@ button:disabled {
   box-shadow: 0 36px 90px rgba(8, 14, 22, 0.3);
   backdrop-filter: var(--glass);
   -webkit-backdrop-filter: var(--glass);
+  overflow: hidden;
+}
+
+.modal-body {
+  min-height: 0;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.manual-control-panel {
+  width: min(760px, calc(100vw - 32px));
+  height: min(78vh, 780px);
+}
+
+.manual-control-body {
+  align-content: start;
 }
 
 .color-picker-row {

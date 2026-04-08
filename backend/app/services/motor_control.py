@@ -254,6 +254,7 @@ class MotorController:
 
     async def set_cutter_axis_zero_here(self) -> CutterAxisState:
         async with self._lock:
+            logger.info("cutter axis zero request mode=%s motion_active=%s", self._status.mode, self._status.cutter_motion_active)
             self._ensure_manual("cutter_set_zero")
             if self._cutter_supports_zeroing():
                 position = await self._cutter.set_zero_position(0.0)
@@ -272,6 +273,12 @@ class MotorController:
 
     async def update_cutter_axis(self, patch: CutterAxisUpdate) -> CutterAxisState:
         async with self._lock:
+            logger.info(
+                "cutter axis update request stroke_mm=%s position_known=%s current_position_mm=%s",
+                patch.stroke_mm,
+                patch.position_known,
+                patch.current_position_mm,
+            )
             state = self._cutter_axis.update(patch)
             self._apply_cutter_axis_state_locked(state)
             await self._refresh_cutter_live_state_locked(force=True)
@@ -762,6 +769,7 @@ class MotorController:
             raise ValueError(f"Unsupported cutter jog direction: {direction}")
 
         down = direction_normalized in {"forward", "down"}
+        logger.info("cutter axis jog request direction=%s distance_mm=%s", direction_normalized, distance_mm)
 
         async with self._lock:
             self._ensure_manual("cutter_jog")
